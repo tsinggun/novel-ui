@@ -902,9 +902,14 @@
 
 /* 二层「选择技法」弹窗 */
 .tech-select__search {
+  position: sticky;
+  top: -16px;
+  z-index: 3;
   height: 38px;
   flex: 0 0 auto;
   font-size: calc(12px * var(--fs));
+  background: #0f0f0f;
+  box-shadow: 0 12px 14px -14px rgba(0, 0, 0, 0.9);
 }
 
 .tech-select__tags {

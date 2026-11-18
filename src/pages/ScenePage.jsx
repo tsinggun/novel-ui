@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import Card from '../components/Card'
+import CardSearch from '../components/CardSearch'
 import EntityCard from '../components/EntityCard'
 import EntityFormCard from '../components/EntityFormCard'
 
 export default function ScenePage({ novel }) {
   const { data } = novel
   const [draft, setDraft] = useState(null)
+  const [query, setQuery] = useState('')
 
   const startCreate = () => setDraft({ name: '', detail: '' })
   const cancel = () => setDraft(null)
@@ -17,6 +19,11 @@ export default function ScenePage({ novel }) {
   }
 
   const inBuilder = (id) => data.inBuilder.scenes.includes(id)
+
+  const keyword = query.trim().toLowerCase()
+  const visibleScenes = keyword
+    ? data.scenes.filter((item) => item.name.toLowerCase().includes(keyword))
+    : data.scenes
 
   return (
     <section className="page">
@@ -31,6 +38,16 @@ export default function ScenePage({ novel }) {
           添加场景卡
         </button>
       </header>
+
+      {data.scenes.length > 0 && (
+        <CardSearch
+          value={query}
+          onChange={setQuery}
+          placeholder="搜索场景名称"
+          total={data.scenes.length}
+          matched={visibleScenes.length}
+        />
+      )}
 
       {!draft && data.scenes.length === 0 && (
         <Card className="card--empty">
@@ -54,7 +71,18 @@ export default function ScenePage({ novel }) {
             />
           )}
 
-          {data.scenes.map((item) => (
+          {visibleScenes.length === 0 && keyword && (
+            <Card className="card--empty">
+              <p className="empty">
+                没有匹配的场景卡。
+                <button type="button" className="btn btn--link" onClick={() => setQuery('')}>
+                  清空检索
+                </button>
+              </p>
+            </Card>
+          )}
+
+          {visibleScenes.map((item) => (
             <EntityCard
               key={item.id}
               id={item.id}

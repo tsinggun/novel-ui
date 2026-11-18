@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import Card from '../components/Card'
+import CardSearch from '../components/CardSearch'
 import EntityCard from '../components/EntityCard'
 import EntityFormCard from '../components/EntityFormCard'
 
@@ -7,6 +8,7 @@ export default function TechniquePage({ novel }) {
   const { data } = novel
   const [draft, setDraft] = useState(null)
   const [activeTags, setActiveTags] = useState([])
+  const [cardQuery, setCardQuery] = useState('')
   const [tagQuery, setTagQuery] = useState('')
   const [tagsExpanded, setTagsExpanded] = useState(false)
 
@@ -42,7 +44,15 @@ export default function TechniquePage({ novel }) {
   const matchesFilter = (item) =>
     activeTags.length === 0 || activeTags.some((tag) => (item.tags || []).includes(tag))
 
-  const visibleTechniques = data.techniques.filter((item) => matchesFilter(item))
+  // 卡片检索：标题（技法名）+ 标签都能命中；和标签筛选是「同时满足」
+  const keyword = cardQuery.trim().toLowerCase()
+  const tagFiltered = data.techniques.filter((item) => matchesFilter(item))
+  const visibleTechniques = tagFiltered.filter(
+    (item) =>
+      !keyword ||
+      item.name.toLowerCase().includes(keyword) ||
+      (item.tags || []).some((tag) => tag.toLowerCase().includes(keyword)),
+  )
 
   // 筛选区实际铺出来的标签
   const query = tagQuery.trim().toLowerCase()
@@ -76,6 +86,16 @@ export default function TechniquePage({ novel }) {
         <Card className="card--empty">
           <p className="empty">还没有技法卡。点击右上角「添加技法」创建第一张。</p>
         </Card>
+      )}
+
+      {data.techniques.length > 0 && (
+        <CardSearch
+          value={cardQuery}
+          onChange={setCardQuery}
+          placeholder="搜索技法名称或标签"
+          total={data.techniques.length}
+          matched={visibleTechniques.length}
+        />
       )}
 
       {data.techniques.length > 0 && tagStats.length > 0 && (
@@ -141,7 +161,7 @@ export default function TechniquePage({ novel }) {
             )}
             {activeTags.length > 0 && (
               <span className="tag-filter__hint">
-                已选 {activeTags.length} 个标签 · 命中 {visibleTechniques.length} 张
+                已选 {activeTags.length} 个标签 · 命中 {tagFiltered.length} 张
                 <button type="button" className="btn btn--link" onClick={() => setActiveTags([])}>
                   清空
                 </button>
@@ -176,7 +196,14 @@ export default function TechniquePage({ novel }) {
             <Card className="card--empty">
               <p className="empty">
                 没有匹配的技法卡。
-                <button type="button" className="btn btn--link" onClick={() => setActiveTags([])}>
+                <button
+                  type="button"
+                  className="btn btn--link"
+                  onClick={() => {
+                    setActiveTags([])
+                    setCardQuery('')
+                  }}
+                >
                   清空筛选
                 </button>
               </p>

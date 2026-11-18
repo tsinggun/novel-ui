@@ -2,11 +2,9 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
-  padding: 6px 10px;
-  border: 1px solid var(--line-strong);
-  background: #151515;
-  /* 首次提示条会换行到第二排，别让它把顶栏顶宽 */
+  gap: 8px;
+  /* 顶栏里所有元素统一高：数据条不再自己带边框和内边距，免得比按钮高一截 */
+  height: 30px;
   max-width: min(780px, 100%);
 }
 
@@ -14,16 +12,18 @@
   font-size: calc(11px * var(--fs));
   letter-spacing: 0.14em;
   color: var(--text-mute);
+  line-height: 1;
 }
 
 .project-bar__name {
   font-size: calc(12.5px * var(--fs));
   letter-spacing: 0.06em;
   color: #ececec;
-  max-width: 32ch;
+  max-width: 28ch;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  line-height: 1;
 }
 
 .project-bar__error {
@@ -31,36 +31,7 @@
   color: #ff8f8f;
 }
 
-.project-bar__panel {
-  flex: 1 1 100%;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  padding-top: 8px;
-  border-top: 1px dashed var(--line);
-}
-
-.project-bar__panel-label {
-  font-size: calc(12px * var(--fs));
-  letter-spacing: 0.1em;
-  color: var(--text-dim);
-}
-
-.project-bar__input {
-  flex: 1 1 360px;
-  min-width: 240px;
-}
-
-.project-bar__tip {
-  flex: 1 1 100%;
-  margin: 0;
-  font-size: calc(11.5px * var(--fs));
-  letter-spacing: 0.04em;
-  color: var(--text-mute);
-}
-
-/* 第一次启动：自动建了空数据文件时的说明条 */
+/* 第一次启动：自动建了空数据文件时的说明条（会把整条撑成两行高） */
 .project-bar__fresh {
   flex: 1 1 100%;
   display: flex;

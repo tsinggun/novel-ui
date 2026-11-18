@@ -1514,3 +1514,17 @@
   color: var(--text-mute);
   cursor: default;
 }
+/* ---------- 顶栏控件统一高度 ---------- */
+/* 放在文件末尾，压过前面 .btn / .btn--sm 的 padding，让数据条按钮、
+   预览提示词、设置、退出视觉上一条线对齐。 */
+.topbar .btn {
+  height: 30px;
+  padding: 0 12px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.topbar .btn--sm {
+  height: 30px;
+  padding: 0 12px;
+}

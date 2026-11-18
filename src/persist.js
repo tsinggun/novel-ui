@@ -16,6 +16,8 @@ export {
   importFromDisk,
   readLocalInfo,
   openDataFile,
+  openWorkspace,
+  migrateToWorkspace,
   loadLibrary,
   saveLibrary,
   storage,

@@ -35,6 +35,17 @@ export const readLocalInfo = (...args) => storage.localInfo(...args)
 /** 载入数据 = 选一个 json 文件，客户端的修改会写回这个文件 */
 export const openDataFile = (...args) => storage.openDataFile(...args)
 
+/** 作品目录（一卡一文件）：打开 / 把现有 json 拆成目录 */
+export const openWorkspace = (...args) =>
+  storage.openWorkspace
+    ? storage.openWorkspace(...args)
+    : Promise.resolve({ ok: false, error: '当前环境不支持作品目录' })
+
+export const migrateToWorkspace = (...args) =>
+  storage.migrateToWorkspace
+    ? storage.migrateToWorkspace(...args)
+    : Promise.resolve({ ok: false, error: '当前环境不支持作品目录' })
+
 /** 素材库：一台机器一份，独立于任何作品，也不会传到线上 */
 export const loadLibrary = (...args) => storage.loadLibrary(...args)
 export const saveLibrary = (...args) => storage.saveLibrary(...args)

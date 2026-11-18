@@ -77,7 +77,7 @@ async function restoreLastFile() {
     if (!existsSync(abs)) return false
     const st = await stat(abs).catch(() => null)
     if (st && st.isDirectory()) {
-      if (!existsSync(path.join(abs, 'manifest.json'))) return false
+      // 目录：有 manifest 就是现成作品；没有就在 ensureInitialDataFile 里建空骨架
       mode = 'dir'
       workspaceDir = abs
       dataFile = abs
@@ -732,8 +732,21 @@ async function handleWorkspace(req, res) {
       // 没指定目标目录就用「同目录下与 json 同名的文件夹」
       const targetDir = body.targetDir || jsonPath.replace(/\.json$/i, '')
       const result = await migrateJsonToWorkspace(jsonPath, targetDir)
+
+      // attach=true：迁完直接切过去（界面不用刷新就能继续用）
+      if (body.attach === true) {
+        const opened = await openWorkspace(result.dir)
+        mode = 'dir'
+        workspaceDir = result.dir
+        dataFile = result.dir
+        await mkdir(appRoot, { recursive: true }).catch(() => {})
+        await writeFile(lastFileRecord, result.dir, 'utf8').catch(() => {})
+        json(res, 200, { ok: true, ...result, source: jsonPath, mode: 'dir', attached: true, data: opened.data })
+        return
+      }
+
       attachedMigrateHint()
-      json(res, 200, { ok: true, ...result, source: jsonPath })
+      json(res, 200, { ok: true, ...result, source: jsonPath, attached: false })
       return
     }
 

@@ -6,7 +6,7 @@ import BuilderPage from './pages/BuilderPage'
 import CharacterPage from './pages/CharacterPage'
 import ScenePage from './pages/ScenePage'
 import TechniquePage from './pages/TechniquePage'
-import { readLocalInfo } from './persist'
+import { readLocalInfo, migrateToWorkspace } from './persist'
 import { useNovelData } from './useNovelData'
 import { useFontScale } from './useFontScale'
 import './App.css'
@@ -17,6 +17,10 @@ function App() {
   const [previewOpen, setPreviewOpen] = useState(false)
   /** 只有在本地跑（便携版 / 客户端）时才有数据文件条和「退出」 */
   const [local, setLocal] = useState(false)
+  /** 迁移成作品目录后让数据条重新读一次 info */
+  const [barVersion, setBarVersion] = useState(0)
+  const [storageNotice, setStorageNotice] = useState('')
+  const [migrating, setMigrating] = useState(false)
   const settingsRef = useRef(null)
   const novel = useNovelData()
   const { scale, step, reset } = useFontScale()
@@ -60,6 +64,37 @@ function App() {
     technique: novel.data.plots.reduce((sum, plot) => sum + (plot.techniqueIds?.length || 0), 0),
   }
 
+  /** 把当前的单文件 json 拆成作品目录（一卡一文件），并直接切过去 */
+  const migrateToDir = async () => {
+    if (migrating) return
+    setMigrating(true)
+    setStorageNotice('')
+    try {
+      const info = await readLocalInfo()
+      if (!info) {
+        setStorageNotice('只有在客户端里才能拆成作品目录')
+        return
+      }
+      if (info.mode === 'dir') {
+        setStorageNotice('当前已经是作品目录模式了')
+        return
+      }
+      const res = await migrateToWorkspace({ jsonPath: info.path, attach: true })
+      if (!res.ok) {
+        setStorageNotice(res.error || '拆目录失败')
+        return
+      }
+      if (res.data) novel.applyLoaded(res.data)
+      setBarVersion((value) => value + 1)
+      const counts = res.counts || {}
+      setStorageNotice(
+        `已拆成作品目录：人物 ${counts.characters ?? 0}、场景 ${counts.scenes ?? 0}、技法 ${counts.techniques ?? 0}、情节 ${counts.plots ?? 0}`,
+      )
+    } finally {
+      setMigrating(false)
+    }
+  }
+
   const quit = () => {
     window.close()
     // --app 窗口允许自关；万一被浏览器拦下，给一句提示
@@ -72,7 +107,7 @@ function App() {
     <div className="shell">
       <header className="topbar">
         <div className="topbar__left">
-          {local && <DataBar onLoadData={(data) => novel.applyLoaded(data)} />}
+          {local && <DataBar key={barVersion} onLoadData={(data) => novel.applyLoaded(data)} />}
           <button
             type="button"
             className="btn btn--sm topbar__btn"
@@ -98,6 +133,25 @@ function App() {
                 <span className="settings__title">全局字号</span>
                 <FontScaleControl scale={scale} step={step} reset={reset} />
                 <p className="settings__tip">影响全站文字大小，含卡片里的说明与详情。</p>
+
+                {local && (
+                  <>
+                    <span className="settings__title settings__title--gap">存储</span>
+                    <button
+                      type="button"
+                      className="btn btn--sm btn--ghost settings__action"
+                      onClick={migrateToDir}
+                      disabled={migrating}
+                      title="把这个 json 拆成作品目录：一卡一文件，只写改过的那张"
+                    >
+                      {migrating ? '正在拆…' : '拆成作品目录'}
+                    </button>
+                    <p className="settings__tip">
+                      拆完会自动切过去。源 json 一个字节都不改，随时还能切回来。
+                    </p>
+                    {storageNotice && <p className="settings__notice">{storageNotice}</p>}
+                  </>
+                )}
               </div>
             )}
           </div>

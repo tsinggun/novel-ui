@@ -80,6 +80,23 @@
   color: var(--text-mute);
 }
 
+.settings__title--gap {
+  margin-top: 6px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--line);
+}
+
+.settings__action {
+  align-self: flex-start;
+}
+
+.settings__notice {
+  margin: 0;
+  font-size: calc(11.5px * var(--fs));
+  line-height: 1.6;
+  color: #dcdcdc;
+}
+
 .shell__body {
   flex: 1 1 auto;
   display: flex;

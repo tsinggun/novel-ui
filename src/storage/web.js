@@ -14,6 +14,7 @@ const EXPORT_URL = '/plot-api/export'
 const LIBRARY_URL = '/plot-api/library'
 const INFO_URL = '/plot-api/info'
 const DATA_FILE_URL = '/plot-api/data-file'
+const WORKSPACE_URL = '/plot-api/workspace'
 
 const notify = (detail) => {
   try {
@@ -129,6 +130,52 @@ export function createWebStorage() {
         }
       } catch (error) {
         return { ok: false, cancelled: false, error: String(error) }
+      }
+    },
+
+    /** 作品目录：打开 / 新建 / 把 json 拆成目录 */
+    async openWorkspace(pathIn) {
+      try {
+        const res = await fetch(WORKSPACE_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'open', ...(pathIn ? { path: pathIn } : {}) }),
+        })
+        if (!res.ok) return { ok: false, error: 'HTTP ' + res.status }
+        const json = await res.json()
+        return {
+          ok: Boolean(json.ok),
+          cancelled: Boolean(json.cancelled),
+          path: json.path || '',
+          data: json.data || null,
+          fresh: Boolean(json.fresh),
+          error: json.error || '',
+        }
+      } catch (error) {
+        return { ok: false, error: String(error) }
+      }
+    },
+
+    /** 把当前（或指定）的 json 拆成作品目录；attach=true 拆完直接切过去 */
+    async migrateToWorkspace({ jsonPath, targetDir, attach = true } = {}) {
+      try {
+        const res = await fetch(WORKSPACE_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'migrate', jsonPath, targetDir, attach }),
+        })
+        if (!res.ok) return { ok: false, error: 'HTTP ' + res.status }
+        const json = await res.json()
+        return {
+          ok: Boolean(json.ok),
+          dir: json.dir || '',
+          counts: json.counts || null,
+          attached: Boolean(json.attached),
+          data: json.data || null,
+          error: json.error || '',
+        }
+      } catch (error) {
+        return { ok: false, error: String(error) }
       }
     },
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import './PromptPreview.css'
 
 export default function PromptPreview({
@@ -12,6 +12,7 @@ export default function PromptPreview({
   onClose,
 }) {
   const [copied, setCopied] = useState(false)
+  const downOnOverlay = useRef(false)
 
   const handleClose = () => {
     setCopied(false)
@@ -39,13 +40,23 @@ export default function PromptPreview({
   }
 
   return (
-    <div className="preview" role="presentation" onClick={handleClose}>
+    <div
+      className="preview"
+      role="presentation"
+      onMouseDown={(event) => {
+        downOnOverlay.current = event.target === event.currentTarget
+      }}
+      onMouseUp={(event) => {
+        const onOverlay = downOnOverlay.current && event.target === event.currentTarget
+        downOnOverlay.current = false
+        if (onOverlay) handleClose()
+      }}
+    >
       <div
         className="preview__dialog"
         role="dialog"
         aria-modal="true"
         aria-label="提示词预览"
-        onClick={(event) => event.stopPropagation()}
       >
         <header className="preview__head">
           <h3 className="preview__title">提示词预览</h3>

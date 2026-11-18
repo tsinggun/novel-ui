@@ -1,9 +1,12 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import './DetailModal.css'
 
 /**
  * 卡片详情弹窗：点卡片时打开，看完整内容（背景、备注、标签……）。
  * sections 为只读段落，children 可放更大的编辑区（如大号 textarea）。
+ *
+ * 关闭判定：只有「按下」和「松开」都落在遮罩本身才关。
+ * 这样拖拽 textarea 的缩放手柄（按下在框内、松开在遮罩上）不会被误判为点击遮罩。
  */
 export default function DetailModal({
   open,
@@ -16,6 +19,8 @@ export default function DetailModal({
   footer,
   onClose,
 }) {
+  const downOnOverlay = useRef(false)
+
   useEffect(() => {
     if (!open) return undefined
     const handleKey = (event) => {
@@ -27,14 +32,28 @@ export default function DetailModal({
 
   if (!open) return null
 
+  const handleMouseDown = (event) => {
+    downOnOverlay.current = event.target === event.currentTarget
+  }
+
+  const handleMouseUp = (event) => {
+    const onOverlay = downOnOverlay.current && event.target === event.currentTarget
+    downOnOverlay.current = false
+    if (onOverlay) onClose()
+  }
+
   return (
-    <div className="detail" role="presentation" onClick={onClose}>
+    <div
+      className="detail"
+      role="presentation"
+      onMouseDown={handleMouseDown}
+      onMouseUp={handleMouseUp}
+    >
       <div
         className="detail__dialog"
         role="dialog"
         aria-modal="true"
         aria-label={title ? `${title} 详情` : '卡片详情'}
-        onClick={(event) => event.stopPropagation()}
       >
         <header className="detail__head">
           <div className="detail__title-wrap">

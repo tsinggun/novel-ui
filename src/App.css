@@ -302,8 +302,9 @@
 
 .note-text {
   margin: 0;
-  font-size: 12.5px;
-  line-height: 1.75;
+  font-size: 14px;
+  line-height: 1.85;
+  letter-spacing: 0.02em;
   white-space: pre-wrap;
   color: var(--text);
 }
@@ -314,7 +315,7 @@
 }
 
 .field--note {
-  max-height: 168px;
+  max-height: 220px;
   overflow: auto;
 }
 
@@ -406,7 +407,7 @@
   border: 1px solid var(--line-strong);
   background: #111111;
   color: #f0f0f0;
-  font-size: 12.5px;
+  font-size: 13px;
   outline: none;
   resize: vertical;
   transition:
@@ -424,8 +425,9 @@
 }
 
 .input--area {
-  min-height: 88px;
-  line-height: 1.75;
+  min-height: 110px;
+  font-size: 14px;
+  line-height: 1.9;
 }
 
 .input--number {

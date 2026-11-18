@@ -94,8 +94,8 @@
 .detail__text {
   margin: 0;
   color: #e4e4e4;
-  font-size: 13px;
-  line-height: 1.95;
+  font-size: 14.5px;
+  line-height: 2;
   letter-spacing: 0.04em;
   white-space: pre-wrap;
   word-break: break-word;
@@ -103,13 +103,13 @@
 
 .detail__text--empty {
   color: var(--text-mute);
-  font-size: 12.5px;
+  font-size: 13.5px;
 }
 
 .detail__editor {
-  min-height: 170px;
-  font-size: 13px;
-  line-height: 1.9;
+  min-height: 200px;
+  font-size: 14.5px;
+  line-height: 1.95;
 }
 
 .detail__editor--tall {

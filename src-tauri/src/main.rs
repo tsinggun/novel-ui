@@ -37,6 +37,8 @@ struct ProjectMeta {
 }
 
 /// 作品根目录：<文档>/NovelUI/<slug>
+///
+/// 也支持「项目 = 任意文件夹」：current-project.txt 里存的是绝对路径时，直接用那个文件夹。
 fn project_dir(app: &AppHandle) -> Result<PathBuf, String> {
     let documents = app
         .path()
@@ -44,13 +46,16 @@ fn project_dir(app: &AppHandle) -> Result<PathBuf, String> {
         .map_err(|error| format!("找不到文档目录：{error}"))?;
 
     let slug_file = documents.join(APP_DIR).join("current-project.txt");
-    let slug = fs::read_to_string(&slug_file)
+    let saved = fs::read_to_string(&slug_file)
         .ok()
         .map(|text| text.trim().to_string())
-        .filter(|text| !text.is_empty())
-        .unwrap_or_else(|| "default".to_string());
+        .filter(|text| !text.is_empty());
 
-    let dir = documents.join(APP_DIR).join(slug);
+    let dir = match saved {
+        Some(text) if Path::new(&text).is_absolute() => PathBuf::from(text),
+        Some(text) => documents.join(APP_DIR).join(text),
+        None => documents.join(APP_DIR).join("default"),
+    };
     fs::create_dir_all(dir.join("backups")).map_err(|error| error.to_string())?;
     fs::create_dir_all(dir.join("exports")).map_err(|error| error.to_string())?;
     Ok(dir)
@@ -294,6 +299,68 @@ fn novel_save_library(app: AppHandle, data: serde_json::Value) -> Result<SaveRes
     })
 }
 
+#[derive(Debug, Serialize)]
+struct ProjectDirResult {
+    dir: String,
+    cancelled: bool,
+}
+
+impl ProjectDirResult {
+    fn cancelled() -> Self {
+        Self {
+            dir: String::new(),
+            cancelled: true,
+        }
+    }
+}
+
+/// 记住项目文件夹（存绝对路径，下次启动接着打开）
+fn remember_project(app: &AppHandle, dir: &Path) -> Result<(), String> {
+    let documents = app
+        .path()
+        .document_dir()
+        .map_err(|error| format!("找不到文档目录：{error}"))?;
+    let root = documents.join(APP_DIR);
+    fs::create_dir_all(&root).map_err(|error| error.to_string())?;
+    fs::write(root.join("current-project.txt"), dir.to_string_lossy().as_bytes())
+        .map_err(|error| error.to_string())
+}
+
+/// 弹原生文件夹选择框，选中后存成当前项目
+#[tauri::command]
+async fn novel_pick_folder(app: AppHandle) -> Result<ProjectDirResult, String> {
+    let picked = app.dialog().file().blocking_pick_folder();
+    let Some(folder) = picked else {
+        return Ok(ProjectDirResult::cancelled());
+    };
+    let path = folder
+        .into_path()
+        .map_err(|error| format!("选的文件夹不可用：{error}"))?;
+    fs::create_dir_all(path.join("backups")).map_err(|error| error.to_string())?;
+    fs::create_dir_all(path.join("exports")).map_err(|error| error.to_string())?;
+    remember_project(&app, &path)?;
+    Ok(ProjectDirResult {
+        dir: path.to_string_lossy().to_string(),
+        cancelled: false,
+    })
+}
+
+/// 直接指定项目文件夹（UI 里手填路径时用）
+#[tauri::command]
+fn novel_open_project(app: AppHandle, dir: String) -> Result<ProjectDirResult, String> {
+    let path = PathBuf::from(dir.trim());
+    if !path.is_absolute() {
+        return Err("请给一个绝对路径".to_string());
+    }
+    fs::create_dir_all(path.join("backups")).map_err(|error| error.to_string())?;
+    fs::create_dir_all(path.join("exports")).map_err(|error| error.to_string())?;
+    remember_project(&app, &path)?;
+    Ok(ProjectDirResult {
+        dir: path.to_string_lossy().to_string(),
+        cancelled: false,
+    })
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -306,7 +373,9 @@ fn main() {
             novel_project_slug,
             novel_switch_project,
             novel_load_library,
-            novel_save_library
+            novel_save_library,
+            novel_pick_folder,
+            novel_open_project
         ])
         .run(tauri::generate_context!())
         .expect("启动客户端失败");

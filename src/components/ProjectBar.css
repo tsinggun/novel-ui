@@ -1,0 +1,30 @@
+.project-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border: 1px solid var(--line-strong);
+  background: #151515;
+  max-width: 100%;
+}
+
+.project-bar__label {
+  font-size: calc(11px * var(--fs));
+  letter-spacing: 0.14em;
+  color: var(--text-mute);
+}
+
+.project-bar__name {
+  font-size: calc(12.5px * var(--fs));
+  letter-spacing: 0.06em;
+  color: #ececec;
+  max-width: 46ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-bar__error {
+  font-size: calc(11.5px * var(--fs));
+  color: #ff8f8f;
+}

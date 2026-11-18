@@ -89,6 +89,15 @@ export function createTauriStorage() {
       return { platform: 'tauri', dir: '', library: '' }
     },
 
+    /** 打开项目：不传 dir 时用原生文件夹对话框 */
+    async openProject(dir) {
+      const res = dir
+        ? await invoke('novel_open_project', { dir })
+        : await invoke('novel_pick_folder')
+      if (!res || res.cancelled) return { ok: false, cancelled: true, dir: '' }
+      return { ok: true, cancelled: false, dir: res.dir || '' }
+    },
+
     async loadLibrary() {
       const res = await invoke('novel_load_library')
       if (!res || !res.data) return null

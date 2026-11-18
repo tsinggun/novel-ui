@@ -13,6 +13,7 @@ const STATE_URL = '/plot-api/state'
 const EXPORT_URL = '/plot-api/export'
 const LIBRARY_URL = '/plot-api/library'
 const INFO_URL = '/plot-api/info'
+const PROJECT_URL = '/plot-api/project'
 
 const notify = (detail) => {
   try {
@@ -99,6 +100,27 @@ export function createWebStorage() {
     },
 
     /** 素材库：整份读写，不跟作品数据混在一起 */
+    /** 打开项目 = 选一个文件夹；不传 dir 就让系统弹选择框 */
+    async openProject(dir) {
+      try {
+        const res = await fetch(PROJECT_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(dir ? { dir } : {}),
+        })
+        if (!res.ok) return { ok: false, cancelled: false, dir: '', error: 'HTTP ' + res.status }
+        const json = await res.json()
+        return {
+          ok: Boolean(json.ok),
+          cancelled: Boolean(json.cancelled),
+          dir: json.dir || '',
+          error: json.error || '',
+        }
+      } catch (error) {
+        return { ok: false, cancelled: false, dir: '', error: String(error) }
+      }
+    },
+
     async loadLibrary() {
       try {
         const res = await fetch(LIBRARY_URL + '?t=' + Date.now(), { cache: 'no-store' })

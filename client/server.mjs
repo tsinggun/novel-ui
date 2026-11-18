@@ -23,16 +23,46 @@ import { fileURLToPath } from 'node:url'
 const here = path.dirname(fileURLToPath(import.meta.url))
 const distDir = path.resolve(here, '..', 'dist')
 
-const slug = process.env.NOVEL_PROJECT || 'default'
 const appRoot = path.join(os.homedir(), 'Documents', 'NovelUI')
-const projectDir = path.join(appRoot, slug)
-const stateFile = path.join(projectDir, 'project.json')
-const backupDir = path.join(projectDir, 'backups')
-const exportDir = path.join(projectDir, 'exports')
+/** 上次打开的项目文件夹，记在这里，下次启动直接接着用 */
+const lastProjectFile = path.join(appRoot, 'last-project.txt')
 
 const BACKUP_KEEP = 10
 
-/* 素材库：本机独立的一份卡片池，不跟任何一部作品混在一起 */
+/**
+ * 项目 = 一个文件夹。人物卡 / 场景卡 / 技法卡 / 构造器状态都存在这个文件夹里的 project.json，
+ * 换个文件夹就是换一个项目，项目之间互不共享。
+ */
+let projectDir = path.join(appRoot, process.env.NOVEL_PROJECT || 'default')
+
+const stateFile = () => path.join(projectDir, 'project.json')
+const backupDir = () => path.join(projectDir, 'backups')
+const exportDir = () => path.join(projectDir, 'exports')
+
+/** 启动时优先用 NOVEL_PROJECT，其次上次打开的项目文件夹，最后才是文档里的 default */
+async function restoreLastProject() {
+  if (process.env.NOVEL_PROJECT) return
+  try {
+    const saved = (await readFile(lastProjectFile, 'utf8')).trim()
+    if (saved && existsSync(path.join(saved, 'project.json'))) projectDir = saved
+  } catch {
+    /* 没有记录就留默认 */
+  }
+}
+
+async function setProjectDir(dir) {
+  const trimmed = String(dir || '').trim()
+  if (!trimmed) throw new Error('路径为空')
+  const absolute = path.resolve(trimmed)
+  await mkdir(path.join(absolute, 'backups'), { recursive: true })
+  await mkdir(path.join(absolute, 'exports'), { recursive: true })
+  projectDir = absolute
+  await mkdir(appRoot, { recursive: true }).catch(() => {})
+  await writeFile(lastProjectFile, absolute, 'utf8').catch(() => {})
+  return absolute
+}
+
+/* 素材库：本机独立的一份卡片池，跨项目复用（不在任何项目文件夹里） */
 const libraryDir = path.join(appRoot, '_library')
 const libraryFile = path.join(libraryDir, 'library.json')
 const libraryBackupDir = path.join(libraryDir, 'backups')
@@ -78,21 +108,23 @@ const readBody = (req) =>
   })
 
 async function rotateBackup() {
+  const file = stateFile()
   try {
-    await stat(stateFile)
+    await stat(file)
   } catch {
     return
   }
-  await mkdir(backupDir, { recursive: true })
+  const dir = backupDir()
+  await mkdir(dir, { recursive: true })
   const stamp = new Date().toISOString().replace(/[:.]/g, '-')
-  await copyFile(stateFile, path.join(backupDir, `project-${stamp}.json`))
+  await copyFile(file, path.join(dir, `project-${stamp}.json`))
 
-  const files = (await readdir(backupDir))
+  const files = (await readdir(dir))
     .filter((name) => name.startsWith('project-') && name.endsWith('.json'))
     .sort()
   while (files.length > BACKUP_KEEP) {
     const oldest = files.shift()
-    await unlink(path.join(backupDir, oldest)).catch(() => {})
+    await unlink(path.join(dir, oldest)).catch(() => {})
   }
 }
 
@@ -101,12 +133,13 @@ async function handleState(req, res) {
 
   if (req.method === 'GET') {
     try {
-      const text = await readFile(stateFile, 'utf8')
+      const file = stateFile()
+      const text = await readFile(file, 'utf8')
       const data = JSON.parse(text)
-      const meta = await stat(stateFile)
-      json(res, 200, { data, path: stateFile, updatedAt: Math.round(meta.mtimeMs / 1000) })
+      const meta = await stat(file)
+      json(res, 200, { data, path: file, dir: projectDir, updatedAt: Math.round(meta.mtimeMs / 1000) })
     } catch {
-      json(res, 404, { path: stateFile })
+      json(res, 404, { path: stateFile(), dir: projectDir })
     }
     return
   }
@@ -119,10 +152,11 @@ async function handleState(req, res) {
         return
       }
       await rotateBackup()
+      const file = stateFile()
       const temp = path.join(projectDir, 'project.json.tmp')
       await writeFile(temp, JSON.stringify(body.data, null, 2), 'utf8')
-      await rename(temp, stateFile)
-      json(res, 200, { ok: true, path: stateFile })
+      await rename(temp, file)
+      json(res, 200, { ok: true, path: file, dir: projectDir })
     } catch (error) {
       json(res, 500, { error: String(error && error.message ? error.message : error) })
     }
@@ -132,6 +166,72 @@ async function handleState(req, res) {
   json(res, 405, { error: '不支持的请求方法' })
 }
 
+/** 让用户在系统文件夹选择框里挑一个项目文件夹（Windows 上用 PowerShell 弹） */
+function pickFolderByDialog() {
+  const script = `
+Add-Type -AssemblyName System.Windows.Forms | Out-Null
+$dialog = New-Object System.Windows.Forms.FolderBrowserDialog
+$dialog.Description = '选择一个项目文件夹（人物卡、场景卡、技法卡都保存在里面）'
+$dialog.ShowNewFolderButton = $true
+if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
+  Write-Output $dialog.SelectedPath
+}
+`.trim()
+
+  return new Promise((resolve) => {
+    const powershell = process.env.SystemRoot
+      ? path.join(process.env.SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
+      : 'powershell.exe'
+    const child = spawn(powershell, ['-NoProfile', '-STA', '-Command', script], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
+    })
+
+    let out = ''
+    child.stdout.on('data', (chunk) => {
+      out += chunk.toString('utf8')
+    })
+    child.on('error', () => resolve(null))
+    child.on('close', () => {
+      const picked = out.trim().split(/\r?\n/).pop() || ''
+      resolve(picked || null)
+    })
+  })
+}
+
+async function handleProject(req, res) {
+  if (req.method === 'GET') {
+    json(res, 200, { dir: projectDir })
+    return
+  }
+
+  if (req.method !== 'POST') {
+    json(res, 405, { error: '不支持的请求方法' })
+    return
+  }
+
+  try {
+    const body = JSON.parse((await readBody(req)) || '{}')
+
+    // 没有给 dir：弹系统文件夹选择框让用户挑
+    if (!body.dir) {
+      const picked = await pickFolderByDialog()
+      if (!picked) {
+        json(res, 200, { ok: false, cancelled: true, dir: projectDir })
+        return
+      }
+      const applied = await setProjectDir(picked)
+      json(res, 200, { ok: true, cancelled: false, dir: applied })
+      return
+    }
+
+    const applied = await setProjectDir(body.dir)
+    json(res, 200, { ok: true, cancelled: false, dir: applied })
+  } catch (error) {
+    json(res, 500, { error: String(error && error.message ? error.message : error) })
+  }
+}
+
 async function handleExport(req, res) {
   if (req.method !== 'POST') {
     json(res, 405, { error: '不支持的请求方法' })
@@ -139,8 +239,9 @@ async function handleExport(req, res) {
   }
   try {
     const body = JSON.parse(await readBody(req))
-    await mkdir(exportDir, { recursive: true })
-    const file = path.join(exportDir, `novel-${Date.now()}.json`)
+    const dir = exportDir()
+    await mkdir(dir, { recursive: true })
+    const file = path.join(dir, `novel-${Date.now()}.json`)
     await writeFile(file, JSON.stringify(body && body.payload ? body.payload : {}, null, 2), 'utf8')
     json(res, 200, { path: file })
   } catch (error) {
@@ -234,15 +335,19 @@ if (!existsSync(path.join(distDir, 'index.html'))) {
   process.exit(1)
 }
 
+// 接着上次打开的项目文件夹；没有记录就用文档里的 default
+await restoreLastProject()
+
 const server = createServer(async (req, res) => {
   lastActiveAt = Date.now()
   const url = new URL(req.url || '/', 'http://127.0.0.1')
   if (url.pathname === '/plot-api/state') return handleState(req, res)
   if (url.pathname === '/plot-api/export') return handleExport(req, res)
   if (url.pathname === '/plot-api/library') return handleLibrary(req, res)
+  if (url.pathname === '/plot-api/project') return handleProject(req, res)
   if (url.pathname === '/plot-api/info') {
     return json(res, 200, {
-      slug,
+      project: path.basename(projectDir),
       dir: projectDir,
       library: libraryFile,
       platform: 'portable',
@@ -289,7 +394,7 @@ async function onListening() {
   const port = server.address().port
   const targetUrl = `http://127.0.0.1:${port}/`
   console.log(`小说构建器 · 便携版`)
-  console.log(`  作品目录：${projectDir}`)
+  console.log(`  项目文件夹：${projectDir}`)
   console.log(`  本地地址：${targetUrl}`)
 
   if (process.argv.includes('--no-window')) return

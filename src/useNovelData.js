@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { loadRemoteState, saveRemoteState } from './persist'
 
 const STORAGE_KEY = 'novel-ui.builder.v1'
@@ -76,8 +76,12 @@ export function useNovelData() {
   /* 先空着，等磁盘那份回来再铺数据，避免用空状态覆盖磁盘 */
   const [data, setData] = useState(() => normalize(null))
   const [loaded, setLoaded] = useState(false)
+  /** 换项目文件夹时 +1，触发重新从新目录读一遍 */
+  const [epoch, setEpoch] = useState(0)
+  /** 换了项目就不能拿上一个项目的 localStorage 兜底，否则会把旧卡片写进新文件夹 */
+  const freshRef = useRef(false)
 
-  /* 启动：磁盘优先，磁盘没有才用 localStorage 兜底 */
+  /* 启动 / 换项目：磁盘优先，磁盘没有才用 localStorage 兜底 */
   useEffect(() => {
     let alive = true
     ;(async () => {
@@ -90,12 +94,31 @@ export function useNovelData() {
         setLoaded(true)
         return
       }
+      if (freshRef.current) {
+        // 新项目文件夹里还没有 project.json：从空库开始
+        setData(normalize(null))
+        try {
+          localStorage.removeItem(STORAGE_KEY)
+        } catch {
+          /* ignore */
+        }
+        freshRef.current = false
+        setLoaded(true)
+        return
+      }
       setData(loadLocal())
       setLoaded(true)
     })()
     return () => {
       alive = false
     }
+  }, [epoch])
+
+  /** 换项目文件夹后重新读：先把 loaded 关掉，免得旧数据被写进新目录 */
+  const reload = useCallback(() => {
+    freshRef.current = true
+    setLoaded(false)
+    setEpoch((value) => value + 1)
   }, [])
 
   /* 数据变化 → 落本地文件；磁盘写不了才退回 localStorage */
@@ -373,6 +396,8 @@ export function useNovelData() {
 
   return {
     data,
+    loaded,
+    reload,
     saveCharacter,
     saveScene,
     saveTechnique,

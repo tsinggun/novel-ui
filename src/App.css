@@ -496,8 +496,8 @@
 
 .field__label,
 .label {
-  font-size: calc(10.5px * var(--fs));
-  letter-spacing: 0.18em;
+  font-size: calc(14px * var(--fs));
+  letter-spacing: 0.12em;
   color: var(--text-mute);
 }
 

@@ -9,13 +9,6 @@ export default function TechniquePage({ novel }) {
   const [activeTags, setActiveTags] = useState([])
 
   const startCreate = () => setDraft({ name: '', detail: '', tags: [] })
-  const startEdit = (item) =>
-    setDraft({
-      id: item.id,
-      name: item.name,
-      detail: item.detail,
-      tags: Array.isArray(item.tags) ? item.tags : [],
-    })
   const cancel = () => setDraft(null)
 
   const handleSave = () => {
@@ -42,10 +35,7 @@ export default function TechniquePage({ novel }) {
   const matchesFilter = (item) =>
     activeTags.length === 0 || activeTags.some((tag) => (item.tags || []).includes(tag))
 
-  // 正在编辑的那张即使被筛掉也要显示，避免编辑到一半消失
-  const visibleTechniques = data.techniques.filter(
-    (item) => matchesFilter(item) || draft?.id === item.id,
-  )
+  const visibleTechniques = data.techniques.filter((item) => matchesFilter(item))
 
   return (
     <section className="page">
@@ -53,7 +43,7 @@ export default function TechniquePage({ novel }) {
         <div>
           <h2 className="page__title">技法卡</h2>
           <p className="page__hint">
-            写下写作技法（节奏、视角、修辞、结构……），保存后在情节卡里勾选使用。
+            写下写作技法（节奏、视角、修辞、结构……），保存后在情节卡里勾选使用。点击已有卡片会放大，直接在里面改。
           </p>
         </div>
         <button type="button" className="btn btn--solid" onClick={startCreate}>
@@ -130,35 +120,23 @@ export default function TechniquePage({ novel }) {
             </Card>
           )}
 
-          {visibleTechniques.map((item) =>
-            draft?.id === item.id ? (
-              <EntityFormCard
-                key={item.id}
-                title={draft.name || '编辑中'}
-                nameLabel="技法名称"
-                namePlaceholder="例如：慢镜头、限知视角、物件寄托"
-                detailLabel="用法说明"
-                detailPlaceholder="这个技法怎么用、适合放在什么样的情节里、要注意什么……"
-                draft={draft}
-                onChange={setDraft}
-                onSave={handleSave}
-                onCancel={cancel}
-                tags={draft.tags}
-                onTagsChange={(tags) => setDraft((prev) => ({ ...prev, tags }))}
-              />
-            ) : (
-              <EntityCard
-                key={item.id}
-                title={item.name}
-                detail={item.detail}
-                detailLabel="用法说明"
-                tags={item.tags}
-                onEdit={() => startEdit(item)}
-                onRemove={() => novel.removeEntity('techniques', item.id)}
-                showBuilder={false}
-              />
-            ),
-          )}
+          {visibleTechniques.map((item) => (
+            <EntityCard
+              key={item.id}
+              id={item.id}
+              title={item.name}
+              detail={item.detail}
+              detailLabel="用法说明"
+              nameLabel="技法名称"
+              namePlaceholder="例如：慢镜头、限知视角、物件寄托"
+              detailPlaceholder="这个技法怎么用、适合放在什么样的情节里、要注意什么……"
+              tagLabel="标签"
+              tags={item.tags}
+              onSave={(patch) => novel.saveTechnique(patch)}
+              onRemove={() => novel.removeEntity('techniques', item.id)}
+              showBuilder={false}
+            />
+          ))}
         </div>
       )}
 
@@ -169,4 +147,3 @@ export default function TechniquePage({ novel }) {
     </section>
   )
 }
-

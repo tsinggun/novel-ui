@@ -8,7 +8,6 @@ export default function CharacterPage({ novel }) {
   const [draft, setDraft] = useState(null)
 
   const startCreate = () => setDraft({ name: '', detail: '' })
-  const startEdit = (item) => setDraft({ id: item.id, name: item.name, detail: item.detail })
   const cancel = () => setDraft(null)
 
   const handleSave = () => {
@@ -24,7 +23,9 @@ export default function CharacterPage({ novel }) {
       <header className="page__head">
         <div>
           <h2 className="page__title">人物卡</h2>
-          <p className="page__hint">写下姓名与人物故事，保存后可一键加入构建器。</p>
+          <p className="page__hint">
+            写下姓名与人物故事，保存后可一键加入构建器。点击已有卡片会放大，直接在里面改。
+          </p>
         </div>
         <button type="button" className="btn btn--solid" onClick={startCreate}>
           添加人物
@@ -53,33 +54,22 @@ export default function CharacterPage({ novel }) {
             />
           )}
 
-          {data.characters.map((item) =>
-            draft?.id === item.id ? (
-              <EntityFormCard
-                key={item.id}
-                title={draft.name || '编辑中'}
-                nameLabel="姓名"
-                namePlaceholder="例如：林见月"
-                detailLabel="详情 / 人物故事"
-                detailPlaceholder="出身、性格、执念、与主角的关系、关键经历……"
-                draft={draft}
-                onChange={setDraft}
-                onSave={handleSave}
-                onCancel={cancel}
-              />
-            ) : (
-              <EntityCard
-                key={item.id}
-                title={item.name}
-                detail={item.detail}
-                detailLabel="详情 / 人物故事"
-                inBuilder={inBuilder(item.id)}
-                onToggleBuilder={() => novel.toggleInBuilder('characters', item.id)}
-                onEdit={() => startEdit(item)}
-                onRemove={() => novel.removeEntity('characters', item.id)}
-              />
-            ),
-          )}
+          {data.characters.map((item) => (
+            <EntityCard
+              key={item.id}
+              id={item.id}
+              title={item.name}
+              detail={item.detail}
+              detailLabel="详情 / 人物故事"
+              nameLabel="姓名"
+              namePlaceholder="例如：林见月"
+              detailPlaceholder="出身、性格、执念、与主角的关系、关键经历……"
+              inBuilder={inBuilder(item.id)}
+              onToggleBuilder={() => novel.toggleInBuilder('characters', item.id)}
+              onSave={(patch) => novel.saveCharacter(patch)}
+              onRemove={() => novel.removeEntity('characters', item.id)}
+            />
+          ))}
         </div>
       )}
 

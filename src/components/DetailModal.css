@@ -112,6 +112,10 @@
   line-height: 1.9;
 }
 
+.detail__editor--tall {
+  min-height: 300px;
+}
+
 .detail__foot {
   display: flex;
   flex-wrap: wrap;

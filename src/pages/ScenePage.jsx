@@ -8,7 +8,6 @@ export default function ScenePage({ novel }) {
   const [draft, setDraft] = useState(null)
 
   const startCreate = () => setDraft({ name: '', detail: '' })
-  const startEdit = (item) => setDraft({ id: item.id, name: item.name, detail: item.detail })
   const cancel = () => setDraft(null)
 
   const handleSave = () => {
@@ -24,7 +23,9 @@ export default function ScenePage({ novel }) {
       <header className="page__head">
         <div>
           <h2 className="page__title">场景卡</h2>
-          <p className="page__hint">给每个场景起名并写下详情，加入构建器后即可和人物、情节一起编排。</p>
+          <p className="page__hint">
+            给每个场景起名并写下详情，加入构建器后即可和人物、情节一起编排。点击已有卡片会放大，直接在里面改。
+          </p>
         </div>
         <button type="button" className="btn btn--solid" onClick={startCreate}>
           添加场景卡
@@ -53,33 +54,22 @@ export default function ScenePage({ novel }) {
             />
           )}
 
-          {data.scenes.map((item) =>
-            draft?.id === item.id ? (
-              <EntityFormCard
-                key={item.id}
-                title={draft.name || '编辑中'}
-                nameLabel="场景名称"
-                namePlaceholder="例如：城南旧书店的雨夜"
-                detailLabel="详情 / 场景描述"
-                detailPlaceholder="时间、地点、氛围、在场人物、发生的事件……"
-                draft={draft}
-                onChange={setDraft}
-                onSave={handleSave}
-                onCancel={cancel}
-              />
-            ) : (
-              <EntityCard
-                key={item.id}
-                title={item.name}
-                detail={item.detail}
-                detailLabel="详情 / 场景描述"
-                inBuilder={inBuilder(item.id)}
-                onToggleBuilder={() => novel.toggleInBuilder('scenes', item.id)}
-                onEdit={() => startEdit(item)}
-                onRemove={() => novel.removeEntity('scenes', item.id)}
-              />
-            ),
-          )}
+          {data.scenes.map((item) => (
+            <EntityCard
+              key={item.id}
+              id={item.id}
+              title={item.name}
+              detail={item.detail}
+              detailLabel="详情 / 场景描述"
+              nameLabel="场景名称"
+              namePlaceholder="例如：城南旧书店的雨夜"
+              detailPlaceholder="时间、地点、氛围、在场人物、发生的事件……"
+              inBuilder={inBuilder(item.id)}
+              onToggleBuilder={() => novel.toggleInBuilder('scenes', item.id)}
+              onSave={(patch) => novel.saveScene(patch)}
+              onRemove={() => novel.removeEntity('scenes', item.id)}
+            />
+          ))}
         </div>
       )}
 

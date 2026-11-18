@@ -103,7 +103,8 @@ export function useNovelData() {
     if (!loaded) return
     let alive = true
     ;(async () => {
-      const ok = await saveRemoteState(data)
+      const saved = await saveRemoteState(data)
+      const ok = saved === true || Boolean(saved && saved.ok)
       if (!alive) return
       if (!ok) {
         try {

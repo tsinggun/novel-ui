@@ -107,7 +107,11 @@ novel-ui/
 │  │  ├─ EntityFormCard.jsx      # 共用的创建/编辑表单卡（含标签编辑器）
 │  │  ├─ DetailModal.jsx/.css    # 卡片详情弹窗
 │  │  ├─ PromptPreview.jsx/.css  # 提示词预览弹窗
-│  │  └─ TechniquePicker.jsx     # 情节的技法选择（可搜索）
+│  │  └─ TechniqueField.jsx      # 情节的技法字段（已选标签 + 二层选择弹窗）
+│  ├─ storage/                   # 存储适配层（见下文）
+│  │  ├─ index.js                # 按运行环境选实现
+│  │  ├─ web.js                  # Harness HTTP 桥 + localStorage 兜底
+│  │  └─ tauri.js               # 客户端本地文件（预留）
 │  └─ pages/
 │     ├─ BuilderPage.jsx         # 构造器
 │     ├─ CharacterPage.jsx       # 人物卡
@@ -116,9 +120,39 @@ novel-ui/
 └─ harness-dist/             # Harness 打包产物（已 gitignore）
 ```
 
+## 存储适配层（为客户端做准备）
+
+业务层只从 `src/persist.js` 取 `loadRemoteState` / `saveRemoteState` / `exportToDisk` / `importFromDisk`，具体落哪由 `src/storage/index.js` 按运行环境选：
+
+| 环境 | 判定 | 实现 |
+|---|---|---|
+| 网页 / Harness | 无 `window.__TAURI_INTERNALS__` | `web.js`：`/plot-api/state` 读写 + 导出，失败退回 `localStorage` |
+| Tauri 客户端 | 有 `window.__TAURI_INTERNALS__` | `tauri.js`：本地作品目录（`project.json` + `backups/`） |
+
+`platform = { name, isDesktop }` 可直接给 UI 用来区分形态；IO 状态事件仍走 `novel-ui:persist`。
+
+客户端侧预留的 Rust 命令契约（尚未实现，`invoke` 失败会自动降级，网页端不受影响）：
+
+```text
+novel_load_state()              -> { data, path, updatedAt } | null
+novel_save_state({ data })      -> { ok, path }
+novel_export_file({ payload })  -> { path } | null
+novel_pick_project()            -> { path, data } | null
+```
+
+计划的目录式作品存储布局：
+
+```text
+<作品目录>/
+  project.json                  # 卡片库 + 构造器状态
+  backups/project-<时间>.json   # 自动备份，保留最近 N 份
+  chapters/                     # 章节草稿（后续）
+  exports/*.json                # 手动导出
+```
+
 ## 数据与持久化
 
-浏览器里存在 `localStorage`（key `novel-ui.builder.v1`），每次改动整包写回；同时 `persist.js` 会把数据 debounce 600ms 落盘到 Harness 的 `/plot-api/state`（`novel-ui.json`），换端口（localStorage 按源隔离）时也能读回磁盘那份。
+浏览器里存在 `localStorage`（key `novel-ui.builder.v1`），每次改动整包写回；同时 `storage/web.js` 会把数据 debounce 600ms 落盘到 Harness 的 `/plot-api/state`（`novel-ui.json`），换端口（localStorage 按源隔离）时也能读回磁盘那份。
 
 数据结构：
 

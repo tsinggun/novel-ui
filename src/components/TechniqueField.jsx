@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 /**
  * 情节里的「使用技法」字段：
@@ -120,7 +120,7 @@ function TechniqueSelectModal({ techniques, selectedIds, onChange, onClose }) {
   const toggle = (id) =>
     onChange(selectedIds.includes(id) ? selectedIds.filter((item) => item !== id) : [...selectedIds, id])
 
-  const downOnOverlay = useMemo(() => ({ current: false }), [])
+  const downOnOverlay = useRef(false)
 
   return (
     <div

@@ -30,7 +30,7 @@
   padding: 5px 14px;
   border: 1px solid var(--line-strong);
   background: #171717;
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--fs));
   font-weight: 500;
   letter-spacing: 0.16em;
   color: #ededed;
@@ -38,7 +38,7 @@
 
 .preview__meta {
   margin-left: auto;
-  font-size: 11px;
+  font-size: calc(11px * var(--fs));
   letter-spacing: 0.1em;
   color: var(--text-mute);
 }
@@ -49,7 +49,7 @@
   border: none;
   background: none;
   color: var(--text-dim);
-  font-size: 16px;
+  font-size: calc(16px * var(--fs));
   line-height: 1;
   cursor: pointer;
 }
@@ -76,7 +76,7 @@
 
 .preview__intro-input {
   min-height: 104px;
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--fs));
   line-height: 1.75;
 }
 
@@ -84,7 +84,7 @@
   margin: 0;
   padding: 18px;
   color: var(--text-mute);
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--fs));
   line-height: 1.7;
 }
 
@@ -97,7 +97,7 @@
   background: #0f0f0f;
   color: #e4e4e4;
   font-family: inherit;
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--fs));
   line-height: 1.95;
   letter-spacing: 0.04em;
   white-space: pre-wrap;

@@ -444,7 +444,7 @@ export default function BuilderPage({ novel, onNavigate }) {
 
                     <textarea
                       className="input input--area"
-                      style={{ fontSize: `${fontSize}px` }}
+                      style={{ fontSize: `calc(${fontSize}px * var(--fs))` }}
                       value={editingPlot.content}
                       placeholder="这一条情节发生了什么，谁做了什么，结果如何……"
                       onChange={(event) =>
@@ -520,7 +520,7 @@ export default function BuilderPage({ novel, onNavigate }) {
                       </button>
                     </div>
                   </div>
-                  <p className="plot__content" style={{ fontSize: `${fontSize}px` }}>
+                  <p className="plot__content" style={{ fontSize: `calc(${fontSize}px * var(--fs))` }}>
                     {plot.content}
                   </p>
                   {tech && (
@@ -581,7 +581,7 @@ export default function BuilderPage({ novel, onNavigate }) {
           <textarea
             id="plot-dialog-content"
             className="input input--area detail__editor"
-            style={{ fontSize: `${fontSize}px` }}
+            style={{ fontSize: `calc(${fontSize}px * var(--fs))` }}
             autoFocus
             placeholder="这一条情节发生了什么，谁做了什么，结果如何……"
             value={plotDraft.content}

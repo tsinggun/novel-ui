@@ -25,7 +25,7 @@
   border: 1px solid var(--line-strong);
   background: #131313;
   color: var(--text-dim);
-  font-size: 13px;
+  font-size: calc(13px * var(--fs));
   cursor: pointer;
   transition:
     border-color 0.15s ease,
@@ -46,7 +46,7 @@
 }
 
 .nav__index {
-  font-size: 10px;
+  font-size: calc(10px * var(--fs));
   letter-spacing: 0.1em;
   color: var(--text-mute);
 }
@@ -57,6 +57,68 @@
 
 .nav__label {
   letter-spacing: 0.18em;
+}
+
+/* ---------- 全局字号控件 ---------- */
+
+.app__toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: -8px;
+}
+
+.type-scale {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border: 1px dashed var(--line);
+  background: #131313;
+}
+
+.type-scale__btn {
+  appearance: none;
+  min-width: 34px;
+  padding: 3px 8px;
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: calc(11.5px * var(--fs));
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.type-scale__btn:hover:not(:disabled) {
+  border-color: #d0d0d0;
+  color: #ffffff;
+}
+
+.type-scale__btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.type-scale__value {
+  appearance: none;
+  min-width: 48px;
+  padding: 1px 4px;
+  border: none;
+  background: none;
+  color: #f0f0f0;
+  font: inherit;
+  font-size: calc(11.5px * var(--fs));
+  letter-spacing: 0.1em;
+  cursor: pointer;
+}
+
+.type-scale__value.is-default {
+  color: var(--text-mute);
+}
+
+.type-scale__value:hover {
+  color: #ffffff;
 }
 
 /* ---------- 页面外框 ---------- */
@@ -82,7 +144,7 @@
 
 .page__title {
   margin: 0;
-  font-size: 19px;
+  font-size: calc(19px * var(--fs));
   font-weight: 600;
   letter-spacing: 0.24em;
   color: #f2f2f2;
@@ -91,7 +153,7 @@
 .page__hint {
   margin: 7px 0 0;
   max-width: 46ch;
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--fs));
   line-height: 1.7;
   color: var(--text-dim);
 }
@@ -113,7 +175,7 @@
 .stat {
   padding: 4px 9px;
   border: 1px solid var(--line);
-  font-size: 11.5px;
+  font-size: calc(11.5px * var(--fs));
   letter-spacing: 0.1em;
   color: var(--text-dim);
 }
@@ -127,7 +189,7 @@
   margin: 2px 0 0;
   padding-top: 12px;
   border-top: 1px dashed var(--line);
-  font-size: 11.5px;
+  font-size: calc(11.5px * var(--fs));
   letter-spacing: 0.12em;
   color: var(--text-mute);
 }
@@ -146,14 +208,14 @@
   margin: 0;
   padding-bottom: 4px;
   border-bottom: 1px solid var(--line-strong);
-  font-size: 13px;
+  font-size: calc(13px * var(--fs));
   font-weight: 500;
   letter-spacing: 0.2em;
   color: #ededed;
 }
 
 .section-head__meta {
-  font-size: 11px;
+  font-size: calc(11px * var(--fs));
   letter-spacing: 0.12em;
   color: var(--text-mute);
 }
@@ -184,7 +246,7 @@
   border: 1px solid var(--line-strong);
   background: #1b1b1b;
   color: var(--text);
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--fs));
   letter-spacing: 0.12em;
   cursor: pointer;
   transition:
@@ -234,7 +296,7 @@
 
 .btn--sm {
   padding: 5px 9px;
-  font-size: 11.5px;
+  font-size: calc(11.5px * var(--fs));
   letter-spacing: 0.06em;
 }
 
@@ -268,7 +330,7 @@
   border: none;
   background: none;
   color: #dcdcdc;
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--fs));
   letter-spacing: 0.06em;
   text-decoration: underline;
   text-underline-offset: 3px;
@@ -295,14 +357,14 @@
 
 .field__label,
 .label {
-  font-size: 10.5px;
+  font-size: calc(10.5px * var(--fs));
   letter-spacing: 0.18em;
   color: var(--text-mute);
 }
 
 .note-text {
   margin: 0;
-  font-size: 14px;
+  font-size: calc(14px * var(--fs));
   line-height: 1.85;
   letter-spacing: 0.02em;
   white-space: pre-wrap;
@@ -321,7 +383,7 @@
 
 .empty {
   margin: 0;
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--fs));
   line-height: 1.7;
 }
 
@@ -352,7 +414,7 @@
   background: transparent;
   color: #f0f0f0;
   font: inherit;
-  font-size: 12px;
+  font-size: calc(12px * var(--fs));
   outline: none;
 }
 
@@ -368,7 +430,7 @@
   border: 1px solid var(--line-strong);
   background: #1d1d1d;
   color: #e6e6e6;
-  font-size: 11.5px;
+  font-size: calc(11.5px * var(--fs));
   letter-spacing: 0.08em;
 }
 
@@ -384,7 +446,7 @@
   border: none;
   background: none;
   color: var(--text-mute);
-  font-size: 12px;
+  font-size: calc(12px * var(--fs));
   line-height: 1;
   cursor: pointer;
 }
@@ -407,7 +469,7 @@
   border: 1px solid var(--line-strong);
   background: #111111;
   color: #f0f0f0;
-  font-size: 13px;
+  font-size: calc(13px * var(--fs));
   outline: none;
   resize: vertical;
   transition:
@@ -426,7 +488,7 @@
 
 .input--area {
   min-height: 110px;
-  font-size: 14px;
+  font-size: calc(14px * var(--fs));
   line-height: 1.9;
 }
 
@@ -455,7 +517,7 @@
 }
 
 .chip__name {
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--fs));
   color: #f0f0f0;
   white-space: nowrap;
 }
@@ -463,7 +525,7 @@
 .chip__detail {
   flex: 1;
   overflow: hidden;
-  font-size: 11.5px;
+  font-size: calc(11.5px * var(--fs));
   color: var(--text-dim);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -477,7 +539,7 @@
   border: none;
   background: none;
   color: var(--text-mute);
-  font-size: 14px;
+  font-size: calc(14px * var(--fs));
   line-height: 1;
   cursor: pointer;
 }
@@ -520,7 +582,7 @@
 
 .plot-font__value {
   min-width: 40px;
-  font-size: 11.5px;
+  font-size: calc(11.5px * var(--fs));
   letter-spacing: 0.08em;
   color: var(--text-mute);
   text-align: center;
@@ -539,7 +601,7 @@
   border: none;
   background: none;
   color: var(--text-mute);
-  font-size: 11.5px;
+  font-size: calc(11.5px * var(--fs));
   letter-spacing: 0.06em;
   cursor: pointer;
 }
@@ -576,13 +638,13 @@
 }
 
 .tool-hint {
-  font-size: 11px;
+  font-size: calc(11px * var(--fs));
   letter-spacing: 0.08em;
   color: var(--text-mute);
 }
 
 .plot__index {
-  font-size: 10.5px;
+  font-size: calc(10.5px * var(--fs));
   letter-spacing: 0.18em;
   color: var(--text-mute);
 }
@@ -590,13 +652,13 @@
 .plot__meta {
   padding: 2px 7px;
   border: 1px solid var(--line);
-  font-size: 10.5px;
+  font-size: calc(10.5px * var(--fs));
   color: var(--text-dim);
 }
 
 .plot__content {
   margin: 0;
-  font-size: 12.5px;
+  font-size: calc(12.5px * var(--fs));
   line-height: 1.75;
   white-space: pre-wrap;
   color: var(--text);
@@ -641,7 +703,7 @@
 
 .tech-picker__search {
   height: 36px;
-  font-size: 12px;
+  font-size: calc(12px * var(--fs));
 }
 
 .tech-chip {
@@ -650,7 +712,7 @@
   border: 1px solid var(--line-strong);
   background: #1a1a1a;
   color: var(--text-dim);
-  font-size: 11.5px;
+  font-size: calc(11.5px * var(--fs));
   letter-spacing: 0.12em;
   cursor: pointer;
   transition:
@@ -679,7 +741,7 @@
 .plot__tech {
   padding: 2px 7px;
   border: 1px dashed var(--line-strong);
-  font-size: 10.5px;
+  font-size: calc(10.5px * var(--fs));
   letter-spacing: 0.08em;
   color: var(--text-dim);
 }
@@ -693,7 +755,7 @@
 .builder-hint {
   min-height: 16px;
   margin: 0;
-  font-size: 11.5px;
+  font-size: calc(11.5px * var(--fs));
   letter-spacing: 0.08em;
   text-align: center;
   color: var(--danger);
@@ -714,7 +776,7 @@
 
   .nav__item {
     padding: 11px 6px;
-    font-size: 12px;
+    font-size: calc(12px * var(--fs));
   }
 
   .nav__label {
@@ -722,7 +784,7 @@
   }
 
   .page__title {
-    font-size: 17px;
+    font-size: calc(17px * var(--fs));
     letter-spacing: 0.18em;
   }
 
@@ -756,7 +818,7 @@
   border: 1px dashed var(--line-strong);
   background: transparent;
   color: var(--text-dim);
-  font-size: 11.5px;
+  font-size: calc(11.5px * var(--fs));
   letter-spacing: 0.1em;
   cursor: pointer;
   transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
@@ -776,7 +838,7 @@
 
 .tag-filter__hint {
   margin-left: auto;
-  font-size: 11px;
+  font-size: calc(11px * var(--fs));
   letter-spacing: 0.08em;
   color: var(--text-mute);
 }
@@ -807,7 +869,7 @@
   background: #101010;
   color: #ededed;
   font: inherit;
-  font-size: 11.5px;
+  font-size: calc(11.5px * var(--fs));
   letter-spacing: 0.08em;
   outline: none;
 }

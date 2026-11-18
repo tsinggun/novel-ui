@@ -1,0 +1,335 @@
+import { useCallback, useEffect, useState } from 'react'
+import { loadRemoteState, saveRemoteState } from './persist'
+
+const STORAGE_KEY = 'novel-ui.builder.v1'
+
+const emptyData = {
+  characters: [],
+  scenes: [],
+  techniques: [],
+  plots: [],
+  inBuilder: { characters: [], scenes: [] },
+  notes: { character: '', scene: '' },
+  /** 构造器里每个人物独立的本章备注（衣服、心情、状态……），按人物 id 存 */
+  characterNotes: {},
+  /** 自定义的开头提示词；null 表示用默认那句 */
+  promptIntro: null,
+  /** 情节内容的字号（px），阅读和编辑共用 */
+  plotFontSize: 14,
+}
+
+const PLOT_FONT_MIN = 12
+const PLOT_FONT_MAX = 22
+
+const uid = () =>
+  globalThis.crypto?.randomUUID?.() ??
+  `id-${Date.now()}-${Math.random().toString(16).slice(2)}`
+
+const normalize = (raw) => {
+  const base = {
+    ...emptyData,
+    inBuilder: { ...emptyData.inBuilder },
+    notes: { ...emptyData.notes },
+  }
+  if (!raw || typeof raw !== 'object') return base
+
+  return {
+    ...base,
+    characters: Array.isArray(raw.characters) ? raw.characters : [],
+    scenes: Array.isArray(raw.scenes) ? raw.scenes : [],
+    techniques: (Array.isArray(raw.techniques) ? raw.techniques : []).map((item) => ({
+      ...item,
+      tags: Array.isArray(item.tags) ? item.tags : [],
+    })),
+    plots: Array.isArray(raw.plots) ? raw.plots : [],
+    inBuilder: { ...base.inBuilder, ...(raw.inBuilder || {}) },
+    notes: { ...base.notes, ...(raw.notes || {}) },
+    characterNotes: { ...(raw.characterNotes || {}) },
+    promptIntro: typeof raw.promptIntro === 'string' ? raw.promptIntro : null,
+    plotFontSize: Number(raw.plotFontSize) || 14,
+  }
+}
+
+const load = () => {
+  try {
+    return normalize(JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'))
+  } catch {
+    return normalize(null)
+  }
+}
+
+export function useNovelData() {
+  const [data, setData] = useState(load)
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
+    } catch {
+      /* 隐私模式下忽略写入失败 */
+    }
+    /* 同时落盘一份，避免换端口（localStorage 按源隔离）后数据消失 */
+    saveRemoteState(data)
+  }, [data])
+
+  /* 启动时如果本地是空的，或者磁盘那份更新，就用磁盘的 */
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      const remote = await loadRemoteState()
+      if (!alive || !remote || !remote.data) return
+      let localAt = 0
+      try {
+        localAt = Number(localStorage.getItem(STORAGE_KEY + '.at')) || 0
+      } catch {
+        localAt = 0
+      }
+      const emptyLocal =
+        !Array.isArray(data.characters) || data.characters.length + data.scenes.length + data.techniques.length + data.plots.length === 0
+      if (emptyLocal || remote.updatedAt > localAt) {
+        setData(normalize(remote.data))
+        try {
+          localStorage.setItem(STORAGE_KEY + '.at', String(remote.updatedAt || Date.now()))
+        } catch {
+          /* ignore */
+        }
+      }
+    })()
+    return () => {
+      alive = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  /** 新建或更新人物卡（draft 带 id 即为编辑） */
+  const saveCharacter = useCallback((draft) => {
+    const name = draft.name.trim() || '未命名人物'
+    const detail = draft.detail.trim()
+    setData((prev) => {
+      if (draft.id) {
+        return {
+          ...prev,
+          characters: prev.characters.map((item) =>
+            item.id === draft.id ? { ...item, name, detail } : item,
+          ),
+        }
+      }
+      return {
+        ...prev,
+        characters: [
+          ...prev.characters,
+          { id: uid(), name, detail, createdAt: Date.now() },
+        ],
+      }
+    })
+  }, [])
+
+  const saveScene = useCallback((draft) => {
+    const name = draft.name.trim() || '未命名场景'
+    const detail = draft.detail.trim()
+    setData((prev) => {
+      if (draft.id) {
+        return {
+          ...prev,
+          scenes: prev.scenes.map((item) =>
+            item.id === draft.id ? { ...item, name, detail } : item,
+          ),
+        }
+      }
+      return {
+        ...prev,
+        scenes: [
+          ...prev.scenes,
+          { id: uid(), name, detail, createdAt: Date.now() },
+        ],
+      }
+    })
+  }, [])
+
+  const saveTechnique = useCallback((draft) => {
+    const name = draft.name.trim() || '未命名技法'
+    const detail = draft.detail.trim()
+    const tags = Array.isArray(draft.tags)
+      ? draft.tags.map((tag) => String(tag).trim()).filter(Boolean)
+      : []
+    setData((prev) => {
+      if (draft.id) {
+        return {
+          ...prev,
+          techniques: prev.techniques.map((item) =>
+            item.id === draft.id ? { ...item, name, detail, tags } : item,
+          ),
+        }
+      }
+      return {
+        ...prev,
+        techniques: [
+          ...prev.techniques,
+          { id: uid(), name, detail, tags, createdAt: Date.now() },
+        ],
+      }
+    })
+  }, [])
+
+  /** 删除实体时一并从构建器里摘掉（人物还顺手清掉它的本章备注） */
+  const removeEntity = useCallback((kind, id) => {
+    setData((prev) => {
+      const next = {
+        ...prev,
+        [kind]: prev[kind].filter((item) => item.id !== id),
+        inBuilder: {
+          ...prev.inBuilder,
+          [kind]: (prev.inBuilder[kind] || []).filter((itemId) => itemId !== id),
+        },
+      }
+
+      if (kind === 'characters' && id in prev.characterNotes) {
+        const notesCopy = { ...prev.characterNotes }
+        delete notesCopy[id]
+        next.characterNotes = notesCopy
+      }
+
+      if (kind === 'techniques') {
+        next.plots = prev.plots.map((plot) => ({
+          ...plot,
+          techniqueIds: (plot.techniqueIds || []).filter((techId) => techId !== id),
+        }))
+      }
+
+      return next
+    })
+  }, [])
+
+  const toggleInBuilder = useCallback((kind, id) => {
+    setData((prev) => {
+      const list = prev.inBuilder[kind]
+      const has = list.includes(id)
+      return {
+        ...prev,
+        inBuilder: {
+          ...prev.inBuilder,
+          [kind]: has ? list.filter((itemId) => itemId !== id) : [...list, id],
+        },
+      }
+    })
+  }, [])
+
+  const addPlot = useCallback(({ content, wordCount, techniqueIds = [] }) => {
+    const text = content.trim()
+    if (!text) return
+    setData((prev) => ({
+      ...prev,
+      plots: [
+        ...prev.plots,
+        {
+          id: uid(),
+          content: text,
+          wordCount: Math.max(0, Number(wordCount) || 0),
+          techniqueIds,
+          createdAt: Date.now(),
+        },
+      ],
+    }))
+  }, [])
+
+  const removePlot = useCallback((id) => {
+    setData((prev) => ({
+      ...prev,
+      plots: prev.plots.filter((plot) => plot.id !== id),
+    }))
+  }, [])
+
+  /** 编辑一条情节：内容、字数、技法 */
+  const updatePlot = useCallback((id, patch) => {
+    const content = (patch.content || '').trim()
+    if (!content) return
+    setData((prev) => ({
+      ...prev,
+      plots: prev.plots.map((plot) =>
+        plot.id === id
+          ? {
+              ...plot,
+              content,
+              wordCount: Math.max(0, Number(patch.wordCount) || 0),
+              techniqueIds: patch.techniqueId ? [patch.techniqueId] : [],
+            }
+          : plot,
+      ),
+    }))
+  }, [])
+
+  /** 上移 / 下移一条情节（delta = -1 | 1） */
+  const movePlot = useCallback((id, delta) => {
+    setData((prev) => {
+      const index = prev.plots.findIndex((plot) => plot.id === id)
+      const target = index + delta
+      if (index < 0 || target < 0 || target >= prev.plots.length) return prev
+      const plots = [...prev.plots]
+      const [moved] = plots.splice(index, 1)
+      plots.splice(target, 0, moved)
+      return { ...prev, plots }
+    })
+  }, [])
+
+  /** 导入整份数据（覆盖当前） */
+  const importData = useCallback((raw) => {
+    setData(normalize(raw))
+  }, [])
+
+  /** 清空构造器：只清这一章的组装，卡片库（人物/场景/技法）保留 */
+  const clearBuilder = useCallback(() => {
+    setData((prev) => ({
+      ...prev,
+      plots: [],
+      inBuilder: { characters: [], scenes: [] },
+      notes: { character: '', scene: '' },
+      characterNotes: {},
+    }))
+  }, [])
+
+  const setNote = useCallback((key, value) => {
+    setData((prev) => ({
+      ...prev,
+      notes: { ...prev.notes, [key]: value },
+    }))
+  }, [])
+
+  /** 按人物 id 写入本章备注，删人物时顺手清掉 */
+  const setCharacterNote = useCallback((id, value) => {
+    setData((prev) => ({
+      ...prev,
+      characterNotes: { ...prev.characterNotes, [id]: value },
+    }))
+  }, [])
+
+  /** 开头提示词：null 表示恢复默认 */
+  const setPromptIntro = useCallback((value) => {
+    setData((prev) => ({ ...prev, promptIntro: value }))
+  }, [])
+
+  /** 情节内容字号，夹在 12–22px 之间 */
+  const setPlotFontSize = useCallback((size) => {
+    setData((prev) => ({
+      ...prev,
+      plotFontSize: Math.min(PLOT_FONT_MAX, Math.max(PLOT_FONT_MIN, Number(size) || 14)),
+    }))
+  }, [])
+
+  return {
+    data,
+    saveCharacter,
+    saveScene,
+    saveTechnique,
+    removeEntity,
+    toggleInBuilder,
+    addPlot,
+    removePlot,
+    updatePlot,
+    movePlot,
+    importData,
+    clearBuilder,
+    setNote,
+    setCharacterNote,
+    setPromptIntro,
+    setPlotFontSize,
+  }
+}

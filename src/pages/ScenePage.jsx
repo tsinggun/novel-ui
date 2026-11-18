@@ -1,0 +1,91 @@
+import { useState } from 'react'
+import Card from '../components/Card'
+import EntityCard from '../components/EntityCard'
+import EntityFormCard from '../components/EntityFormCard'
+
+export default function ScenePage({ novel }) {
+  const { data } = novel
+  const [draft, setDraft] = useState(null)
+
+  const startCreate = () => setDraft({ name: '', detail: '' })
+  const startEdit = (item) => setDraft({ id: item.id, name: item.name, detail: item.detail })
+  const cancel = () => setDraft(null)
+
+  const handleSave = () => {
+    if (!draft || !draft.name.trim()) return
+    novel.saveScene(draft)
+    setDraft(null)
+  }
+
+  const inBuilder = (id) => data.inBuilder.scenes.includes(id)
+
+  return (
+    <section className="page">
+      <header className="page__head">
+        <div>
+          <h2 className="page__title">场景卡</h2>
+          <p className="page__hint">给每个场景起名并写下详情，加入构建器后即可和人物、情节一起编排。</p>
+        </div>
+        <button type="button" className="btn btn--solid" onClick={startCreate}>
+          添加场景卡
+        </button>
+      </header>
+
+      {!draft && data.scenes.length === 0 && (
+        <Card className="card--empty">
+          <p className="empty">还没有场景卡。点击右上角「添加场景卡」创建第一张。</p>
+        </Card>
+      )}
+
+      {(draft || data.scenes.length > 0) && (
+        <div className="card-grid">
+          {draft && !draft.id && (
+            <EntityFormCard
+              title="创建场景"
+              nameLabel="场景名称"
+              namePlaceholder="例如：城南旧书店的雨夜"
+              detailLabel="详情 / 场景描述"
+              detailPlaceholder="时间、地点、氛围、在场人物、发生的事件……"
+              draft={draft}
+              onChange={setDraft}
+              onSave={handleSave}
+              onCancel={cancel}
+            />
+          )}
+
+          {data.scenes.map((item) =>
+            draft?.id === item.id ? (
+              <EntityFormCard
+                key={item.id}
+                title={draft.name || '编辑中'}
+                nameLabel="场景名称"
+                namePlaceholder="例如：城南旧书店的雨夜"
+                detailLabel="详情 / 场景描述"
+                detailPlaceholder="时间、地点、氛围、在场人物、发生的事件……"
+                draft={draft}
+                onChange={setDraft}
+                onSave={handleSave}
+                onCancel={cancel}
+              />
+            ) : (
+              <EntityCard
+                key={item.id}
+                title={item.name}
+                detail={item.detail}
+                detailLabel="详情 / 场景描述"
+                inBuilder={inBuilder(item.id)}
+                onToggleBuilder={() => novel.toggleInBuilder('scenes', item.id)}
+                onEdit={() => startEdit(item)}
+                onRemove={() => novel.removeEntity('scenes', item.id)}
+              />
+            ),
+          )}
+        </div>
+      )}
+
+      <p className="page__foot">
+        共 {data.scenes.length} 张场景卡 · 已加入构建器 {data.inBuilder.scenes.length} 张
+      </p>
+    </section>
+  )
+}

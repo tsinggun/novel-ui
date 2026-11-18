@@ -3,11 +3,12 @@ import Card from '../components/Card'
 import CardSearch from '../components/CardSearch'
 import EntityCard from '../components/EntityCard'
 import EntityFormCard from '../components/EntityFormCard'
+import { matchEveryTerm } from '../searchTerms'
 
 export default function CharacterPage({ novel }) {
   const { data } = novel
   const [draft, setDraft] = useState(null)
-  const [query, setQuery] = useState('')
+  const [terms, setTerms] = useState([])
 
   const startCreate = () => setDraft({ name: '', detail: '' })
   const cancel = () => setDraft(null)
@@ -20,10 +21,7 @@ export default function CharacterPage({ novel }) {
 
   const inBuilder = (id) => data.inBuilder.characters.includes(id)
 
-  const keyword = query.trim().toLowerCase()
-  const visibleCharacters = keyword
-    ? data.characters.filter((item) => item.name.toLowerCase().includes(keyword))
-    : data.characters
+  const visibleCharacters = data.characters.filter((item) => matchEveryTerm(terms, [item.name]))
 
   return (
     <section className="page">
@@ -41,8 +39,8 @@ export default function CharacterPage({ novel }) {
 
       {data.characters.length > 0 && (
         <CardSearch
-          value={query}
-          onChange={setQuery}
+          terms={terms}
+          onTermsChange={setTerms}
           placeholder="搜索人物姓名"
           total={data.characters.length}
           matched={visibleCharacters.length}
@@ -71,11 +69,11 @@ export default function CharacterPage({ novel }) {
             />
           )}
 
-          {visibleCharacters.length === 0 && keyword && (
+          {visibleCharacters.length === 0 && terms.length > 0 && (
             <Card className="card--empty">
               <p className="empty">
                 没有匹配的人物卡。
-                <button type="button" className="btn btn--link" onClick={() => setQuery('')}>
+                <button type="button" className="btn btn--link" onClick={() => setTerms([])}>
                   清空检索
                 </button>
               </p>

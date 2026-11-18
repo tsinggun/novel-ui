@@ -3,12 +3,13 @@ import Card from '../components/Card'
 import CardSearch from '../components/CardSearch'
 import EntityCard from '../components/EntityCard'
 import EntityFormCard from '../components/EntityFormCard'
+import { matchEveryTerm } from '../searchTerms'
 
 export default function TechniquePage({ novel }) {
   const { data } = novel
   const [draft, setDraft] = useState(null)
   const [activeTags, setActiveTags] = useState([])
-  const [cardQuery, setCardQuery] = useState('')
+  const [terms, setTerms] = useState([])
   const [tagQuery, setTagQuery] = useState('')
   const [tagsExpanded, setTagsExpanded] = useState(false)
 
@@ -44,14 +45,10 @@ export default function TechniquePage({ novel }) {
   const matchesFilter = (item) =>
     activeTags.length === 0 || activeTags.some((tag) => (item.tags || []).includes(tag))
 
-  // 卡片检索：标题（技法名）+ 标签都能命中；和标签筛选是「同时满足」
-  const keyword = cardQuery.trim().toLowerCase()
+  // 卡片检索：标题（技法名）+ 标签都能命中；多个条件全都要满足，和标签筛选也是「同时满足」
   const tagFiltered = data.techniques.filter((item) => matchesFilter(item))
-  const visibleTechniques = tagFiltered.filter(
-    (item) =>
-      !keyword ||
-      item.name.toLowerCase().includes(keyword) ||
-      (item.tags || []).some((tag) => tag.toLowerCase().includes(keyword)),
+  const visibleTechniques = tagFiltered.filter((item) =>
+    matchEveryTerm(terms, [item.name, ...(item.tags || [])]),
   )
 
   // 筛选区实际铺出来的标签
@@ -90,8 +87,8 @@ export default function TechniquePage({ novel }) {
 
       {data.techniques.length > 0 && (
         <CardSearch
-          value={cardQuery}
-          onChange={setCardQuery}
+          terms={terms}
+          onTermsChange={setTerms}
           placeholder="搜索技法名称或标签"
           total={data.techniques.length}
           matched={visibleTechniques.length}
@@ -201,7 +198,7 @@ export default function TechniquePage({ novel }) {
                   className="btn btn--link"
                   onClick={() => {
                     setActiveTags([])
-                    setCardQuery('')
+                    setTerms([])
                   }}
                 >
                   清空筛选

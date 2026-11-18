@@ -71,12 +71,67 @@
   background: #141414;
 }
 
+.card-search__box {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 200px;
+  min-height: 38px;
+  padding: 5px 8px;
+  border: 1px solid var(--line-strong);
+  background: #111111;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.card-search__box:focus-within {
+  border-color: #e6e6e6;
+  background: #161616;
+}
+
+.search-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 4px 2px 8px;
+  border: 1px solid #d8d8d8;
+  background: #242424;
+  color: #f2f2f2;
+  font-size: calc(11.5px * var(--fs));
+  letter-spacing: 0.08em;
+}
+
+.search-chip__remove {
+  appearance: none;
+  padding: 0 2px;
+  border: none;
+  background: none;
+  color: var(--text-mute);
+  font-size: calc(12px * var(--fs));
+  line-height: 1;
+  cursor: pointer;
+}
+
+.search-chip__remove:hover {
+  color: var(--danger);
+}
+
 .card-search__input {
   flex: 1;
-  min-width: 160px;
-  max-width: 360px;
-  padding: 5px 9px;
+  min-width: 140px;
+  padding: 3px 2px;
+  border: none;
+  background: transparent;
+  color: #f0f0f0;
+  font: inherit;
   font-size: calc(12px * var(--fs));
+  letter-spacing: 0.06em;
+  outline: none;
+}
+
+.card-search__input::placeholder {
+  color: #5c5c5c;
 }
 
 .card-search__hint {

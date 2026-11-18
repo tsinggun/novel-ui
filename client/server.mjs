@@ -53,20 +53,49 @@ const BACKUP_KEEP = 10
  */
 let dataFile = defaultDataFile
 
-const stateFile = () => dataFile
-const dataDir = () => path.dirname(dataFile)
-const backupDir = () => path.join(dataDir(), '_novelui-backups')
-const exportDir = () => path.join(dataDir(), '_novelui-exports')
+/**
+ * 存储模式：
+ *   'file' —— 单个 json（老模式，兼容 + 导出/交换格式）
+ *   'dir'  —— 作品目录（一卡一文件，只写脏文件；见下方 dir 相关函数）
+ */
+let mode = 'file'
+/** 目录模式下的作品根目录 */
+let workspaceDir = null
 
-/** 启动时优先用 NOVEL_FILE，其次上次载入的文件，最后用文档里的默认文件 */
+const stateFile = () => dataFile
+const dataDir = () => (mode === 'dir' && workspaceDir ? workspaceDir : path.dirname(dataFile))
+const backupDir = () => path.join(dataDir(), '_novelui-backups')
+const exportDir = () =>
+  mode === 'dir' && workspaceDir
+    ? path.join(workspaceDir, '_exports')
+    : path.join(path.dirname(dataFile), '_novelui-exports')
+
+/** 启动时优先用 NOVEL_FILE，其次上次载入的路径，最后用文档里的默认文件 */
 async function restoreLastFile() {
+  const applyPath = async (candidate) => {
+    const abs = path.resolve(candidate)
+    if (!existsSync(abs)) return false
+    const st = await stat(abs).catch(() => null)
+    if (st && st.isDirectory()) {
+      if (!existsSync(path.join(abs, 'manifest.json'))) return false
+      mode = 'dir'
+      workspaceDir = abs
+      dataFile = abs
+      return true
+    }
+    mode = 'file'
+    workspaceDir = null
+    dataFile = abs
+    return true
+  }
+
   if (process.env.NOVEL_FILE) {
-    dataFile = path.resolve(process.env.NOVEL_FILE)
+    await applyPath(process.env.NOVEL_FILE)
     return
   }
   try {
     const saved = (await readFile(lastFileRecord, 'utf8')).trim()
-    if (saved && existsSync(saved)) dataFile = saved
+    if (saved) await applyPath(saved)
   } catch {
     /* 没有记录就留默认 */
   }
@@ -95,6 +124,11 @@ let freshCreated = false
  * 直接在文档目录里建一份空 json，让界面立刻可用，而不是留一个「文件不存在」。
  */
 async function ensureInitialDataFile() {
+  if (mode === 'dir' && workspaceDir) {
+    if (existsSync(path.join(workspaceDir, 'manifest.json'))) return
+    await openWorkspace(workspaceDir)
+    return
+  }
   if (existsSync(dataFile)) return
   await mkdir(dataDir(), { recursive: true })
   await writeFile(dataFile, `${JSON.stringify(emptyData, null, 2)}\n`, 'utf8')
@@ -117,18 +151,302 @@ async function readDataFile(file) {
   return wrapped
 }
 
-/** 切到一个数据文件：校验能解析，然后记住它 */
+/** 切到一个数据来源：.json 文件走单文件模式，文件夹走目录模式 */
 async function setDataFile(target) {
   const trimmed = String(target || '').trim()
   if (!trimmed) throw new Error('路径为空')
   const absolute = path.resolve(trimmed)
-  if (!existsSync(absolute)) throw new Error('文件不存在：' + absolute)
-  if (!absolute.toLowerCase().endsWith('.json')) throw new Error('请选择 .json 文件')
+  if (!existsSync(absolute)) throw new Error('路径不存在：' + absolute)
+
+  if (!absolute.toLowerCase().endsWith('.json') && (await stat(absolute)).isDirectory()) {
+    // 目录模式：有 manifest 就读现成的作品，空目录就当场建一个空作品
+    const loaded = await openWorkspace(absolute)
+    mode = 'dir'
+    workspaceDir = absolute
+    dataFile = absolute
+    await mkdir(appRoot, { recursive: true }).catch(() => {})
+    await writeFile(lastFileRecord, absolute, 'utf8').catch(() => {})
+    return { path: absolute, data: loaded.data, mode: 'dir', fresh: loaded.fresh }
+  }
+
   const data = await readDataFile(absolute)
+  mode = 'file'
+  workspaceDir = null
   dataFile = absolute
   await mkdir(appRoot, { recursive: true }).catch(() => {})
   await writeFile(lastFileRecord, absolute, 'utf8').catch(() => {})
-  return { path: absolute, data }
+  return { path: absolute, data, mode: 'file', fresh: false }
+}
+
+/* ------------------------------------------------------------------
+ * 目录式作品存储（一卡一文件）
+ *
+ *   作品/
+ *   ├── manifest.json        索引 + 非卡片类字段（inBuilder / 备注 / 设置…）
+ *   ├── characters/<名字>~<id尾6>.json
+ *   ├── scenes/ techniques/ plots/
+ *   └── .history/<kind>/<文件>.<时间戳>.json   每个文件改前的旧版本
+ *
+ * 三条铁律：
+ *   1. 只写脏文件：没变的卡一个字节都不碰（靠和上一份快照逐条对比得出）
+ *   2. 原子写：先写 .tmp 再 rename，不会出现半截文件
+ *   3. 改前留旧版：每个文件在 .history 里留最近 20 份
+ * ------------------------------------------------------------------ */
+
+const ENTITY_KINDS = ['characters', 'scenes', 'techniques', 'plots']
+const MANIFEST_NAME = 'manifest.json'
+const HISTORY_DIR = '.history'
+const HISTORY_KEEP = 20
+/** manifest 里存这些非卡片字段（构造器状态、备注、设置） */
+const META_FIELDS = [
+  'title',
+  'inBuilder',
+  'inContext',
+  'notes',
+  'characterNotes',
+  'promptIntro',
+  'previousRecap',
+  'plotFontSize',
+]
+
+const manifestPath = (dir) => path.join(dir, MANIFEST_NAME)
+
+/** 文件名：中文名 + id 尾部，去掉 Windows 非法字符；一旦生成就跟着 id 不变 */
+function entityFileName(entity) {
+  const clean = String(entity.name || entity.content || '')
+    .replace(/[\u0000-\u001f]/g, '')
+    .replace(/[\\/:*?"<>|]/g, '_')
+    .replace(/\s+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 40)
+  const tail = String(entity.id || '')
+    .replace(/[^a-zA-Z0-9]/g, '')
+    .slice(-6)
+  return `${clean || 'untitled'}~${tail || 'x'}.json`
+}
+
+/** 原子写：临时文件 + rename，崩在中间不会留下半个文件 */
+async function writeJsonAtomic(file, value) {
+  const dir = path.dirname(file)
+  await mkdir(dir, { recursive: true })
+  const temp = path.join(dir, `.${path.basename(file)}.${process.pid}.tmp`)
+  await writeFile(temp, `${JSON.stringify(value, null, 2)}\n`, 'utf8')
+  await rename(temp, file)
+}
+
+/** 改前备份到 .history/<kind>/，每个文件只留最近 HISTORY_KEEP 份 */
+async function backupEntityFile(dir, kind, name) {
+  const src = path.join(dir, kind, name)
+  if (!existsSync(src)) return
+  const histDir = path.join(dir, HISTORY_DIR, kind)
+  await mkdir(histDir, { recursive: true })
+  const base = name.replace(/\.json$/i, '')
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+  await copyFile(src, path.join(histDir, `${base}.${stamp}.json`))
+
+  const files = (await readdir(histDir))
+    .filter((item) => item.startsWith(`${base}.`) && item.endsWith('.json'))
+    .sort()
+  while (files.length > HISTORY_KEEP) {
+    const oldest = files.shift()
+    await unlink(path.join(histDir, oldest)).catch(() => {})
+  }
+}
+
+const pickMeta = (data) => {
+  const meta = {}
+  for (const field of META_FIELDS) {
+    if (data && data[field] !== undefined) meta[field] = data[field]
+  }
+  return meta
+}
+
+function emptyManifest(title) {
+  const now = Date.now()
+  return {
+    schemaVersion: 2,
+    title: title || '未命名作品',
+    createdAt: now,
+    updatedAt: now,
+    files: { characters: {}, scenes: {}, techniques: {}, plots: {} },
+    meta: {},
+  }
+}
+
+/** 读整个作品目录，组装成界面需要的那份数据 */
+async function loadWorkspace(dir) {
+  const file = manifestPath(dir)
+  if (!existsSync(file)) {
+    return { manifest: null, data: JSON.parse(JSON.stringify(emptyData)), fresh: false, exists: false }
+  }
+  const manifest = JSON.parse(await readFile(file, 'utf8'))
+  const data = JSON.parse(JSON.stringify(emptyData))
+  for (const kind of ENTITY_KINDS) {
+    const files = (manifest.files && manifest.files[kind]) || {}
+    const list = []
+    for (const [id, name] of Object.entries(files)) {
+      try {
+        const text = await readFile(path.join(dir, kind, name), 'utf8')
+        const parsed = JSON.parse(text)
+        if (parsed && typeof parsed === 'object') list.push(parsed)
+      } catch {
+        /* 单个文件坏了不该让整个作品打不开：跳过它，界面上这张卡就是缺的 */
+      }
+    }
+    // 按创建时间还原顺序（文件系统顺序不可靠）
+    list.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0))
+    data[kind] = list
+  }
+  Object.assign(data, manifest.meta || {})
+  return { manifest, data, fresh: false, exists: true }
+}
+
+/** 打开/新建一个作品目录 */
+async function openWorkspace(dir, title) {
+  const abs = path.resolve(dir)
+  const loaded = await loadWorkspace(abs)
+  if (loaded.exists) return { data: loaded.data, fresh: false }
+
+  const entries = existsSync(abs) ? await readdir(abs) : []
+  if (entries.filter((name) => !name.startsWith('.')).length > 0) {
+    throw new Error('这个文件夹里没有 manifest.json，不像一个作品目录')
+  }
+
+  const manifest = emptyManifest(title || path.basename(abs))
+  await mkdir(abs, { recursive: true })
+  for (const kind of ENTITY_KINDS) await mkdir(path.join(abs, kind), { recursive: true })
+  await writeJsonAtomic(manifestPath(abs), manifest)
+  console.log(`  新建作品目录 ${abs}`)
+  return { data: JSON.parse(JSON.stringify(emptyData)), fresh: true }
+}
+
+/**
+ * 把一份完整数据写回作品目录 —— 只写和上一份快照不一样的卡。
+ * 返回本次真正动过的文件列表（界面/日志用）。
+ */
+async function writeWorkspace(dir, prevData, nextData) {
+  const loaded = await loadWorkspace(dir)
+  const manifest = JSON.parse(JSON.stringify(loaded.manifest || emptyManifest()))
+  manifest.files = manifest.files || {}
+  // 先留一份原始 manifest 的快照，用来判断「文件索引有没有变」
+  const beforeSnapshot = JSON.stringify({ ...manifest, updatedAt: 0 })
+  const changed = []
+
+  for (const kind of ENTITY_KINDS) {
+    manifest.files[kind] = manifest.files[kind] || {}
+    const files = manifest.files[kind]
+    const before = new Map(((prevData && prevData[kind]) || []).map((item) => [item.id, item]))
+    const after = Array.isArray(nextData[kind]) ? nextData[kind] : []
+    const afterIds = new Set(after.map((item) => item.id))
+
+    for (const entity of after) {
+      const nextJson = JSON.stringify(entity)
+      const prevJson = before.has(entity.id) ? JSON.stringify(before.get(entity.id)) : null
+      const name = files[entity.id]
+      const onDisk = name ? existsSync(path.join(dir, kind, name)) : false
+      if (prevJson === nextJson && onDisk) continue // 没变，一个字节都不碰
+
+      const fileName = name || entityFileName(entity)
+      await backupEntityFile(dir, kind, fileName)
+      await writeJsonAtomic(path.join(dir, kind, fileName), entity)
+      files[entity.id] = fileName
+      changed.push(`${kind}/${fileName}`)
+    }
+
+    for (const [id, name] of Object.entries(files)) {
+      if (afterIds.has(id)) continue
+      await backupEntityFile(dir, kind, name)
+      await rm(path.join(dir, kind, name), { force: true })
+      delete files[id]
+      changed.push(`${kind}/${name}（删除）`)
+    }
+  }
+
+  const nextManifest = {
+    ...manifest,
+    meta: pickMeta(nextData),
+    updatedAt: Date.now(),
+  }
+  const afterSnapshot = JSON.stringify({ ...nextManifest, updatedAt: 0 })
+  if (beforeSnapshot !== afterSnapshot) {
+    await writeJsonAtomic(manifestPath(dir), nextManifest)
+    changed.push(MANIFEST_NAME)
+  }
+  return changed
+}
+
+/** 迁移校验用：把数据归一成可比较的结构（补齐默认值、卡片按 id 排序、忽略时间戳与标题） */
+function normalizeForCompare(data) {
+  const out = {}
+  for (const kind of ENTITY_KINDS) {
+    out[kind] = (data[kind] || [])
+      .slice()
+      .sort((a, b) => String(a.id).localeCompare(String(b.id)))
+      .map((item) => JSON.parse(JSON.stringify(item)))
+  }
+  const meta = pickMeta({ ...emptyData, ...data })
+  delete meta.title
+  out.meta = meta
+  return JSON.stringify(out, Object.keys(out).length ? undefined : undefined)
+}
+
+/** 找出两份数据第一处不同，报错时能说人话 */
+function describeMismatch(source, reloaded) {
+  for (const kind of ENTITY_KINDS) {
+    const a = (source[kind] || []).length
+    const b = (reloaded[kind] || []).length
+    if (a !== b) return `${kind} 数量不一致：源 ${a} / 目录 ${b}`
+    const ids = new Set((source[kind] || []).map((item) => item.id))
+    for (const item of source[kind] || []) {
+      const other = (reloaded[kind] || []).find((candidate) => candidate.id === item.id)
+      if (!other) return `${kind} 缺少卡片 ${item.id}`
+      if (JSON.stringify(item) !== JSON.stringify(other)) {
+        return `${kind} 卡片 ${item.id}（${item.name || ''}）内容不一致`
+      }
+    }
+    if (ids.size !== a) return `${kind} 里存在重复 id`
+  }
+  const metaA = JSON.stringify(pickMeta({ ...emptyData, ...source }))
+  const metaB = JSON.stringify(pickMeta({ ...emptyData, ...reloaded }))
+  if (metaA !== metaB) {
+    const keys = META_FIELDS.filter(
+      (field) =>
+        JSON.stringify((source[field] ?? emptyData[field])) !==
+        JSON.stringify((reloaded[field] ?? emptyData[field])),
+    )
+    return `元信息不一致：${keys.join('、')}`
+  }
+  return '未能定位差异'
+}
+
+/** 把一个 json 拆成作品目录；校验不一致就整目录回滚 */
+async function migrateJsonToWorkspace(jsonPath, targetDir) {
+  const source = path.resolve(jsonPath)
+  if (!existsSync(source)) throw new Error('源文件不存在：' + source)
+  const target = path.resolve(targetDir)
+  if (existsSync(target)) {
+    const entries = await readdir(target)
+    if (entries.length > 0) throw new Error('目标文件夹不是空的，请换一个新文件夹：' + target)
+  }
+
+  const sourceData = await readDataFile(source)
+  await mkdir(target, { recursive: true })
+  for (const kind of ENTITY_KINDS) await mkdir(path.join(target, kind), { recursive: true })
+  const manifest = emptyManifest(path.basename(source, '.json'))
+  manifest.meta = pickMeta(sourceData)
+  await writeJsonAtomic(manifestPath(target), manifest)
+  await writeWorkspace(target, null, sourceData)
+
+  const reloaded = await loadWorkspace(target)
+  if (normalizeForCompare(sourceData) !== normalizeForCompare(reloaded.data)) {
+    const reason = describeMismatch(sourceData, reloaded.data)
+    await rm(target, { recursive: true, force: true })
+    throw new Error(`迁移后数据对不上（${reason}），已删除目标文件夹回滚`)
+  }
+
+  const counts = {}
+  for (const kind of ENTITY_KINDS) counts[kind] = (reloaded.data[kind] || []).length
+  return { dir: target, counts }
 }
 
 /* 素材库：本机独立的一份卡片池，跨项目复用（不在任何项目文件夹里） */
@@ -199,17 +517,35 @@ async function rotateBackup() {
 }
 
 async function handleState(req, res) {
-  await mkdir(dataDir(), { recursive: true })
-
   if (req.method === 'GET') {
     try {
+      if (mode === 'dir' && workspaceDir) {
+        const loaded = await loadWorkspace(workspaceDir)
+        const stamp = loaded.manifest ? loaded.manifest.updatedAt : 0
+        json(res, 200, {
+          data: loaded.data,
+          path: workspaceDir,
+          dir: workspaceDir,
+          mode: 'dir',
+          title: loaded.manifest ? loaded.manifest.title : path.basename(workspaceDir),
+          updatedAt: stamp ? Math.round(stamp / 1000) : Math.round(Date.now() / 1000),
+        })
+        return
+      }
       const file = stateFile()
+      await mkdir(dataDir(), { recursive: true })
       const text = await readFile(file, 'utf8')
       const data = JSON.parse(text)
       const meta = await stat(file)
-      json(res, 200, { data, path: file, dir: dataDir(), updatedAt: Math.round(meta.mtimeMs / 1000) })
+      json(res, 200, {
+        data,
+        path: file,
+        dir: dataDir(),
+        mode: 'file',
+        updatedAt: Math.round(meta.mtimeMs / 1000),
+      })
     } catch {
-      json(res, 404, { path: stateFile(), dir: dataDir() })
+      json(res, 404, { path: mode === 'dir' ? workspaceDir : stateFile(), dir: dataDir(), mode })
     }
     return
   }
@@ -221,12 +557,28 @@ async function handleState(req, res) {
         json(res, 400, { error: '缺少 data' })
         return
       }
+
+      if (mode === 'dir' && workspaceDir) {
+        // 目录模式：和上一份快照逐条比，只写脏了的卡
+        const prev = (await loadWorkspace(workspaceDir)).data
+        const changed = await writeWorkspace(workspaceDir, prev, body.data)
+        json(res, 200, {
+          ok: true,
+          path: workspaceDir,
+          dir: workspaceDir,
+          mode: 'dir',
+          changed,
+        })
+        return
+      }
+
+      await mkdir(dataDir(), { recursive: true })
       await rotateBackup()
       const file = stateFile()
       const temp = path.join(dataDir(), `.${path.basename(file)}.tmp`)
       await writeFile(temp, JSON.stringify(body.data, null, 2), 'utf8')
       await rename(temp, file)
-      json(res, 200, { ok: true, path: file, dir: dataDir() })
+      json(res, 200, { ok: true, path: file, dir: dataDir(), mode: 'file', changed: [path.basename(file)] })
     } catch (error) {
       json(res, 500, { error: String(error && error.message ? error.message : error) })
     }
@@ -236,13 +588,23 @@ async function handleState(req, res) {
   json(res, 405, { error: '不支持的请求方法' })
 }
 
-/** 让用户在系统文件选择框里挑一个 json（Windows 上用 PowerShell 弹，父窗口置顶避免被挡住） */
+/** 让用户在系统文件选择框里挑一个 json */
 function pickFileByDialog() {
+  return pickByDialog('file')
+}
+
+/** 让用户在系统选择框里挑一个作品文件夹 */
+function pickFolderByDialog() {
+  return pickByDialog('folder')
+}
+
+function pickByDialog(kind) {
   // PowerShell 5.1 的 stdout 会被控制台代码页（GBK/437）改写，中文路径经管道传回来会变乱码。
   // 所以让 PowerShell 把结果直接以 UTF-8 写进临时文件，Node 再读文件，避免编码损失。
   const resultFile = path.join(os.tmpdir(), `novelui-pick-${process.pid}-${Date.now()}.txt`)
   // PowerShell 单引号字符串不转义反斜杠，用正斜杠更稳（Windows 一样能打开）
   const psResultFile = resultFile.replace(/'/g, "''").replace(/\\/g, '/')
+  const isFolder = kind === 'folder'
 
   const script = `
 [Console]::OutputEncoding = [Text.Encoding]::UTF8
@@ -261,13 +623,22 @@ $owner.Opacity = 0
 $owner.Show()
 $owner.Activate()
 
-$dialog = New-Object System.Windows.Forms.OpenFileDialog
-$dialog.Title = '载入数据文件（json）'
-$dialog.Filter = 'JSON 数据 (*.json)|*.json|所有文件 (*.*)|*.*'
-$dialog.CheckFileExists = $true
+$value = ''
+if (${isFolder ? '$true' : '$false'}) {
+  $dialog = New-Object System.Windows.Forms.FolderBrowserDialog
+  $dialog.Description = '选择作品文件夹（里面会有 characters / scenes / techniques / plots）'
+  $dialog.ShowNewFolderButton = $true
+  if ($dialog.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK) { $value = $dialog.SelectedPath }
+} else {
+  $dialog = New-Object System.Windows.Forms.OpenFileDialog
+  $dialog.Title = '载入数据文件（json）'
+  $dialog.Filter = 'JSON 数据 (*.json)|*.json|所有文件 (*.*)|*.*'
+  $dialog.CheckFileExists = $true
+  if ($dialog.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK) { $value = $dialog.FileName }
+}
 
-if ($dialog.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK) {
-  [IO.File]::WriteAllText('${psResultFile}', $dialog.FileName, (New-Object System.Text.UTF8Encoding($false)))
+if ($value) {
+  [IO.File]::WriteAllText('${psResultFile}', $value, (New-Object System.Text.UTF8Encoding($false)))
 }
 $owner.Close()
 `.trim()
@@ -295,10 +666,10 @@ $owner.Close()
   })
 }
 
-/** 载入数据：GET 看当前文件，POST 换一个 json 文件并返回里面的数据 */
+/** 载入数据：GET 看当前来源，POST 换一个 json 或作品文件夹并返回里面的数据 */
 async function handleDataFile(req, res) {
   if (req.method === 'GET') {
-    json(res, 200, { path: dataFile })
+    json(res, 200, { path: dataFile, mode })
     return
   }
 
@@ -310,18 +681,83 @@ async function handleDataFile(req, res) {
   try {
     const body = JSON.parse((await readBody(req)) || '{}')
 
-    // 没有给 path：弹系统文件选择框让用户挑
-    const target = body.path || (await pickFileByDialog())
+    // 没有给 path：弹系统选择框让用户挑（kind=dir 挑文件夹，否则挑 json）
+    const target = body.path || (await (body.kind === 'dir' ? pickFolderByDialog() : pickFileByDialog()))
     if (!target) {
-      json(res, 200, { ok: false, cancelled: true, path: dataFile })
+      json(res, 200, { ok: false, cancelled: true, path: dataFile, mode })
       return
     }
 
     const applied = await setDataFile(target)
-    json(res, 200, { ok: true, cancelled: false, path: applied.path, data: applied.data })
+    json(res, 200, {
+      ok: true,
+      cancelled: false,
+      path: applied.path,
+      mode: applied.mode,
+      fresh: applied.fresh === true,
+      data: applied.data,
+    })
   } catch (error) {
     json(res, 200, { ok: false, error: String(error && error.message ? error.message : error) })
   }
+}
+
+/**
+ * 作品目录专用接口：
+ *   POST { action:'open', path? }                    → 打开/新建作品目录
+ *   POST { action:'migrate', jsonPath, targetDir? }  → 把 json 拆成作品目录
+ *   POST { action:'info' }                           → 当前存储模式与作品信息
+ */
+async function handleWorkspace(req, res) {
+  if (req.method !== 'POST') {
+    json(res, 405, { error: '不支持的请求方法' })
+    return
+  }
+  try {
+    const body = JSON.parse((await readBody(req)) || '{}')
+    const action = body.action || 'open'
+
+    if (action === 'info') {
+      const title =
+        mode === 'dir' && workspaceDir
+          ? ((await loadWorkspace(workspaceDir)).manifest || {}).title || path.basename(workspaceDir)
+          : path.basename(dataFile)
+      json(res, 200, { ok: true, mode, path: dataFile, title })
+      return
+    }
+
+    if (action === 'migrate') {
+      const jsonPath = body.jsonPath || (mode === 'file' ? dataFile : null)
+      if (!jsonPath) throw new Error('没有可迁移的 json')
+      // 没指定目标目录就用「同目录下与 json 同名的文件夹」
+      const targetDir = body.targetDir || jsonPath.replace(/\.json$/i, '')
+      const result = await migrateJsonToWorkspace(jsonPath, targetDir)
+      attachedMigrateHint()
+      json(res, 200, { ok: true, ...result, source: jsonPath })
+      return
+    }
+
+    // action=open
+    const target = body.path || (await pickFolderByDialog())
+    if (!target) {
+      json(res, 200, { ok: false, cancelled: true, mode, path: dataFile })
+      return
+    }
+    const opened = await openWorkspace(target)
+    mode = 'dir'
+    workspaceDir = path.resolve(target)
+    dataFile = workspaceDir
+    await mkdir(appRoot, { recursive: true }).catch(() => {})
+    await writeFile(lastFileRecord, dataFile, 'utf8').catch(() => {})
+    json(res, 200, { ok: true, cancelled: false, mode: 'dir', path: dataFile, fresh: opened.fresh, data: opened.data })
+  } catch (error) {
+    json(res, 200, { ok: false, error: String(error && error.message ? error.message : error) })
+  }
+}
+
+/** 迁移完不自动切换，只留一条提示（用户可能还想继续用原来的 json） */
+function attachedMigrateHint() {
+  console.log('  作品目录已生成；要切过去可以在界面里「打开作品目录」选择它')
 }
 
 async function handleExport(req, res) {
@@ -438,14 +874,16 @@ const server = createServer(async (req, res) => {
   if (url.pathname === '/plot-api/export') return handleExport(req, res)
   if (url.pathname === '/plot-api/library') return handleLibrary(req, res)
   if (url.pathname === '/plot-api/data-file') return handleDataFile(req, res)
+  if (url.pathname === '/plot-api/workspace') return handleWorkspace(req, res)
   if (url.pathname === '/plot-api/info') {
     return json(res, 200, {
-      file: path.basename(dataFile),
+      file: mode === 'dir' && workspaceDir ? path.basename(workspaceDir) : path.basename(dataFile),
       path: dataFile,
       dir: dataDir(),
+      mode,
       library: libraryFile,
       platform: 'portable',
-      /** true = 这次启动刚新建了空文件（第一次使用） */
+      /** true = 这次启动刚新建了空数据（第一次使用） */
       fresh: freshCreated,
     })
   }

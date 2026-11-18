@@ -100,13 +100,21 @@ export function createWebStorage() {
     },
 
     /** 素材库：整份读写，不跟作品数据混在一起 */
-    /** 载入数据 = 选一个 json 文件；不传 path 就让系统弹文件框 */
-    async openDataFile(pathIn) {
+    /**
+     * 载入数据：
+     *   - 选 .json 文件 → 单文件模式
+     *   - 选作品文件夹（kind='dir'）→ 目录模式（一卡一文件）
+     * 不传 path 就让系统弹窗
+     */
+    async openDataFile(pathIn, kind) {
       try {
+        const payload = {}
+        if (pathIn) payload.path = pathIn
+        if (kind === 'dir') payload.kind = 'dir'
         const res = await fetch(DATA_FILE_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(pathIn ? { path: pathIn } : {}),
+          body: JSON.stringify(payload),
         })
         if (!res.ok) return { ok: false, cancelled: false, error: 'HTTP ' + res.status }
         const json = await res.json()
@@ -114,6 +122,8 @@ export function createWebStorage() {
           ok: Boolean(json.ok),
           cancelled: Boolean(json.cancelled),
           path: json.path || '',
+          mode: json.mode === 'dir' ? 'dir' : 'file',
+          fresh: Boolean(json.fresh),
           data: json.data || null,
           error: json.error || '',
         }

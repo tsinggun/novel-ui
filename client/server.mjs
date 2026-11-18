@@ -14,7 +14,7 @@
 
 import { createServer } from 'node:http'
 import { existsSync } from 'node:fs'
-import { copyFile, mkdir, readdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, readdir, readFile, rename, rm, stat, unlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
@@ -196,10 +196,13 @@ setInterval(() => {
   }
 }, 60 * 1000).unref()
 
-const EDGE_CANDIDATES = [
+// 浏览器候选：Chrome 的 --app 最稳（一定开新窗口），其次 Edge，都没有就交给系统默认浏览器
+const BROWSER_CANDIDATES = [
+  path.join(process.env.LOCALAPPDATA || '', 'Google\\Chrome\\Application\\chrome.exe'),
+  path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Google\\Chrome\\Application\\chrome.exe'),
+  path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Google\\Chrome\\Application\\chrome.exe'),
   path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Microsoft\\Edge\\Application\\msedge.exe'),
-  path.join(process.env['ProgramFiles'] || 'C:\\Program Files', 'Microsoft\\Edge\\Application\\msedge.exe'),
-  path.join(process.env['LOCALAPPDATA'] || '', 'Microsoft\\Edge\\Application\\msedge.exe'),
+  path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Microsoft\\Edge\\Application\\msedge.exe'),
 ]
 
 server.listen(0, '127.0.0.1', async () => {
@@ -211,18 +214,22 @@ server.listen(0, '127.0.0.1', async () => {
 
   if (process.argv.includes('--no-window')) return
 
-  const edge = EDGE_CANDIDATES.find((item) => item && existsSync(item))
-  if (!edge) {
-    console.log('  没找到 Edge，用默认浏览器打开（关掉终端即退出）')
+  const browser = BROWSER_CANDIDATES.find((item) => item && existsSync(item))
+  if (!browser) {
+    console.log('  没找到 Chrome / Edge，用系统默认浏览器打开')
     spawn('cmd', ['/c', 'start', '', targetUrl], { detached: true, stdio: 'ignore' }).unref()
     return
   }
 
   const profileDir = path.join(appRoot, '.window-profile')
   await mkdir(profileDir, { recursive: true })
+  // 上次异常退出可能留下单实例锁，不清掉会静默不开窗
+  for (const lock of ['SingletonLock', 'SingletonCookie', 'SingletonSocket']) {
+    await rm(path.join(profileDir, lock), { force: true, recursive: true }).catch(() => {})
+  }
 
   const child = spawn(
-    edge,
+    browser,
     [
       `--app=${targetUrl}`,
       '--new-window',
@@ -241,13 +248,13 @@ server.listen(0, '127.0.0.1', async () => {
     { stdio: 'ignore', detached: false },
   )
 
-  // msedge.exe 只是启动器：窗口交给正在运行的 Edge 主进程后它自己就退出了。
-  // 所以这里不能跟着它退出，否则服务一关窗口立刻变成「无法访问此网站」。
+  // 启动器把窗口交给已运行的主进程后自己就退出了，所以不能跟着它退出，
+  // 否则服务一关窗口立刻变成「无法访问此网站」。
   child.on('exit', (code) => {
-    console.log(`  已调用 Edge 打开窗口（启动器退出码 ${code ?? 0}），服务继续运行。`)
+    console.log(`  已打开窗口（启动器退出码 ${code ?? 0}），服务继续运行。`)
   })
   child.on('error', (error) => {
-    console.log(`  Edge 启动失败：${error.message}，改用默认浏览器`)
+    console.log(`  浏览器启动失败：${error.message}，改用默认浏览器`)
     spawn('cmd', ['/c', 'start', '', targetUrl], { detached: true, stdio: 'ignore' }).unref()
   })
 })

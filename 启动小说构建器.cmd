@@ -1,11 +1,19 @@
 @echo off
-chcp 65001 >nul
-title 小说构建器
 cd /d "%~dp0"
-echo 正在启动小说构建器（便携版）...
+set "NODE_EXE=node"
+where node >nul 2>nul
+if errorlevel 1 (
+  echo Node.js not found. Please install Node.js 20+ and retry.
+  pause
+  exit /b 1
+)
+if not exist "dist\index.html" (
+  echo First run: building the UI, please wait...
+  call npm run client:build
+)
 node client\server.mjs
 if errorlevel 1 (
   echo.
-  echo 启动失败：请确认已安装 Node.js，且执行过 npm install / npm run client:build
+  echo Startup failed. See the messages above.
   pause
 )

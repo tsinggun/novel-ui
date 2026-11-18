@@ -4,6 +4,7 @@ import CardSearch from '../components/CardSearch'
 import EntityCard from '../components/EntityCard'
 import EntityCreateModal from '../components/EntityCreateModal'
 import PasteImportModal from '../components/PasteImportModal'
+import { readCardFiles } from '../cardImport'
 import { matchEveryTerm } from '../searchTerms'
 
 export default function ScenePage({ novel }) {
@@ -12,6 +13,26 @@ export default function ScenePage({ novel }) {
   const [terms, setTerms] = useState([])
   const [pasteOpen, setPasteOpen] = useState(false)
   const [pasteNotice, setPasteNotice] = useState('')
+  const [fileOver, setFileOver] = useState(false)
+
+  /** 直接把 .json 文件拖到页面上：松手就读卡导入 */
+  const handlePageDrop = async (event) => {
+    event.preventDefault()
+    setFileOver(false)
+    const files = event.dataTransfer?.files
+    if (!files || files.length === 0) return
+    const { items, problems } = await readCardFiles(files)
+    if (items.length === 0) {
+      setPasteNotice(problems.join('、') || '文件里没找到场景卡')
+      return
+    }
+    const result = novel.importEntities('scenes', items)
+    setPasteNotice(
+      `已导入 ${result.added} 张场景卡${result.skipped ? `，跳过重名 ${result.skipped} 张` : ''}${
+        problems.length ? `；跳过 ${problems.join('、')}` : ''
+      }`,
+    )
+  }
 
   const startCreate = () => setDraft({ name: '', detail: '' })
   const cancel = () => setDraft(null)
@@ -27,7 +48,20 @@ export default function ScenePage({ novel }) {
   const visibleScenes = data.scenes.filter((item) => matchEveryTerm(terms, [item.name]))
 
   return (
-    <section className="page">
+    <section
+      className={`page${fileOver ? ' page--fileover' : ''}`}
+      onDragOver={(event) => {
+        if (!event.dataTransfer?.types?.includes('Files')) return
+        event.preventDefault()
+        setFileOver(true)
+      }}
+      onDragLeave={(event) => {
+        if (event.currentTarget.contains(event.relatedTarget)) return
+        setFileOver(false)
+      }}
+      onDrop={handlePageDrop}
+    >
+      {fileOver && <div className="page__dropmask">松手：读取 .json 并导入场景卡</div>}
       <header className="page__head">
         <div>
           <h2 className="page__title">场景卡</h2>

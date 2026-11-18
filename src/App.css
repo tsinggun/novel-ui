@@ -452,6 +452,27 @@
   height: 30px;
 }
 
+/* 拖文件到卡片页时整页高亮 + 中间提示 */
+.page--fileover {
+  position: relative;
+  outline: 1px dashed #d8d8d8;
+  outline-offset: 6px;
+}
+
+.page__dropmask {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px dashed #d8d8d8;
+  background: #191919;
+  font-size: calc(12px * var(--fs));
+  letter-spacing: 0.08em;
+  color: #ffffff;
+  text-align: center;
+}
+
 /* 导入弹窗：标题行 + 选文件按钮 */
 .import-bar {
   display: flex;

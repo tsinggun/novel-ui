@@ -75,11 +75,18 @@ const isBlank = (d) =>
 export function useNovelData() {
   /* 先空着，等磁盘那份回来再铺数据，避免用空状态覆盖磁盘 */
   const [data, setData] = useState(() => normalize(null))
+  /** 最新数据的镜像：批量导入这类要同步返回条数的操作靠它算，不能等 setState 回调 */
+  const dataRef = useRef(data)
   const [loaded, setLoaded] = useState(false)
   /** 换项目文件夹时 +1，触发重新从新目录读一遍 */
   const [epoch, setEpoch] = useState(0)
   /** 换了项目就不能拿上一个项目的 localStorage 兜底，否则会把旧卡片写进新文件夹 */
   const freshRef = useRef(false)
+
+  /* data 变了就把镜像同步过来（批量导入要拿它算「新增 / 重名」） */
+  useEffect(() => {
+    dataRef.current = data
+  }, [data])
 
   /* 启动 / 换项目：磁盘优先，磁盘没有才用 localStorage 兜底 */
   useEffect(() => {
@@ -378,30 +385,33 @@ export function useNovelData() {
       })
       .filter(Boolean)
 
-    let added = 0
-    let skipped = 0
-    if (incoming.length === 0) return { added, skipped }
+    if (incoming.length === 0) return { added: 0, skipped: 0 }
 
-    setData((prev) => {
-      const list = [...prev[key]]
-      incoming.forEach((item) => {
-        if (list.some((entry) => entry.name === item.name)) {
-          skipped += 1
-          return
-        }
-        list.push({
-          id: uid(),
-          name: item.name,
-          detail: item.detail.trim(),
-          ...(key === 'techniques' ? { tags: item.tags } : {}),
-          createdAt: Date.now(),
-        })
-        added += 1
+    // 先对着当前数据算出「新增 / 重名」，再写状态：这样函数能同步返回真实条数
+    const base = dataRef.current?.[key] || []
+    const known = new Set(base.map((entry) => entry.name))
+    const fresh = []
+    let skipped = 0
+    incoming.forEach((item) => {
+      if (known.has(item.name)) {
+        skipped += 1
+        return
+      }
+      known.add(item.name)
+      fresh.push({
+        id: uid(),
+        name: item.name,
+        detail: item.detail.trim(),
+        ...(key === 'techniques' ? { tags: item.tags } : {}),
+        createdAt: Date.now(),
       })
-      return { ...prev, [key]: list }
     })
 
-    return { added, skipped }
+    if (fresh.length > 0) {
+      setData((prev) => ({ ...prev, [key]: [...prev[key], ...fresh] }))
+    }
+
+    return { added: fresh.length, skipped }
   }, [])
 
   /** 清空构造器：只清这一章的组装，卡片库（人物/场景/技法）保留 */

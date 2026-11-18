@@ -1,14 +1,13 @@
 import { useRef, useState } from 'react'
 import DetailModal from './DetailModal'
+import { parseCardJson, readCardFiles } from '../cardImport'
 
 /**
- * 批量导入卡片：粘 JSON 或直接放一个 .json 文件进来都行。
+ * 批量导入卡片：粘 JSON，或者把 .json 文件丢进来（直接自动导入，不用再点按钮）。
  * 支持单张卡的 JSON（{ "name": "...", "detail": "...", "tags": [...] }）
- * 和数组（[ {...}, {...} ]），追加进卡片库，不覆盖已有卡片。
- * id / createdAt 这类字段会被忽略，重名的卡片跳过。
- *
- * 文件通道：点「选择 .json」挑文件，或者把文件拖到下面这个框里；
- * 读进来的内容会先铺在文本框里，确认无误再点「导入」。
+ * 和数组（[ {...}, {...} ]），也支持一次拖多个文件（按顺序合并导入）。
+ * 追加进卡片库，不覆盖已有卡片；id / createdAt 忽略，重名跳过。
+ * 只有 JSON 坏掉时才会把内容铺回文本框，让手改后再点「导入」。
  */
 export default function PasteImportModal({
   open,
@@ -26,47 +25,65 @@ export default function PasteImportModal({
 
   if (!open) return null
 
-  const readFile = async (file) => {
-    if (!file) return
-    if (!/\.(json|txt)$/i.test(file.name) && !/json|text/i.test(file.type || '')) {
-      setError(`「${file.name}」看着不像 JSON 文件，选 .json 的`)
+  const handleFiles = async (files) => {
+    const list = Array.from(files || [])
+    if (list.length === 0) return
+    const { items, problems } = await readCardFiles(list)
+
+    if (items.length > 0) {
+      const result = onImport(items)
+      setText('')
+      setFileName('')
+      setError(
+        problems.length
+          ? `已导入，但跳过了：${problems.join('、')}`
+          : result.added === 0
+            ? `没有新增：这 ${result.skipped} 张重名，已经在库里了`
+            : '',
+      )
       return
     }
-    try {
-      const content = await file.text()
-      setText(content)
-      setFileName(file.name)
-      setError('')
-    } catch {
-      setError(`读不了「${file.name}」，换一个文件试试`)
+
+    // 一张都没解析出来：单个文件就把内容铺进框里给人改
+    if (list.length === 1 && problems.length === 1) {
+      try {
+        setText(await list[0].text())
+        setFileName(list[0].name)
+      } catch {
+        /* 读不出来就只报错 */
+      }
     }
+    setError(problems.join('、') || '这些文件里没找到卡片')
   }
 
-  const parse = () => {
+  const importText = () => {
     const trimmed = text.trim()
     if (!trimmed) {
-      setError('先粘一段 JSON，或者选一个 .json 文件')
+      setError('先粘一段 JSON，或者把 .json 文件拖进来')
       return
     }
-    let parsed
-    try {
-      parsed = JSON.parse(trimmed)
-    } catch {
-      setError('不是有效的 JSON，检查一下引号、逗号、括号')
-      return
-    }
-    const items = Array.isArray(parsed) ? parsed : [parsed]
-    if (items.length === 0 || typeof items[0] !== 'object' || items[0] === null) {
-      setError('要一个对象或对象数组，例如 { "name": "技法名" }')
+    const items = parseCardJson(trimmed)
+    if (!items) {
+      setError('不是有效的卡片 JSON：要一个对象或对象数组，例如 { "name": "技法名" }')
       return
     }
     const result = onImport(items)
     setText('')
     setFileName('')
-    setError('')
-    if (result && result.added === 0) {
-      setError(`没有新增：这 ${result.skipped} 张重名，已经在库里了`)
-    }
+    setError(result.added === 0 ? `没有新增：这 ${result.skipped} 张重名，已经在库里了` : '')
+  }
+
+  const dropHandlers = {
+    onDragOver: (event) => {
+      event.preventDefault()
+      setDragging(true)
+    },
+    onDragLeave: () => setDragging(false),
+    onDrop: (event) => {
+      event.preventDefault()
+      setDragging(false)
+      handleFiles(event.dataTransfer?.files)
+    },
   }
 
   return (
@@ -83,25 +100,26 @@ export default function PasteImportModal({
           <button type="button" className="btn btn--sm btn--ghost" onClick={onClose}>
             取消
           </button>
-          <button type="button" className="btn btn--sm btn--solid" onClick={parse}>
+          <button type="button" className="btn btn--sm btn--solid" onClick={importText}>
             导入
           </button>
         </>
       }
     >
-      <div className="detail__section">
+      <div className="detail__section" {...dropHandlers}>
         <div className="import-bar">
           <label className="field__label" htmlFor="paste-json">
             JSON
           </label>
-          <span className="tool-hint">粘一段 JSON，或者放 .json 文件进来</span>
+          <span className="tool-hint">粘一段 JSON，或者把 .json 文件拖进这个弹窗（松手就导入）</span>
           <input
             ref={fileRef}
             type="file"
             accept=".json,application/json"
+            multiple
             hidden
             onChange={(event) => {
-              readFile(event.target.files?.[0])
+              handleFiles(event.target.files)
               event.target.value = ''
             }}
           />
@@ -124,19 +142,11 @@ export default function PasteImportModal({
             setFileName('')
             if (error) setError('')
           }}
-          onDragOver={(event) => {
-            event.preventDefault()
-            setDragging(true)
-          }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={(event) => {
-            event.preventDefault()
-            setDragging(false)
-            readFile(event.dataTransfer?.files?.[0])
-          }}
+          {...dropHandlers}
         />
 
-        {fileName && <p className="tool-hint">已载入文件：{fileName}</p>}
+        {dragging && <p className="tool-hint">松手就读这个文件并导入</p>}
+        {fileName && <p className="tool-hint">已载入文件：{fileName}（检查无误后点「导入」）</p>}
         {error && <p className="path-prompt__error">{error}</p>}
       </div>
     </DetailModal>

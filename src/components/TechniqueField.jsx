@@ -161,70 +161,72 @@ function TechniqueSelectModal({ techniques, selectedIds, onChange, onClose }) {
         </header>
 
         <div className="detail__body">
-          <input
-            className="input tech-select__search"
-            type="search"
-            placeholder="搜技法名称、标签或用法说明"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
+          <div className="tech-select__sticky">
+            <input
+              className="input tech-select__search"
+              type="search"
+              placeholder="搜技法名称、标签或用法说明"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
 
-          {activeTags.length > 0 && (
-            <div className="tech-select__active">
-              <span className="tech-select__active-label">已选标签</span>
-              {activeTags.map((tag) => (
-                <span key={tag} className="tag-chip">
-                  {tag}
+            {activeTags.length > 0 && (
+              <div className="tech-select__active">
+                <span className="tech-select__active-label">已选标签</span>
+                {activeTags.map((tag) => (
+                  <span key={tag} className="tag-chip">
+                    {tag}
+                    <button
+                      type="button"
+                      className="tag-chip__remove"
+                      aria-label={`取消标签 ${tag}`}
+                      onClick={() => setActiveTags((prev) => prev.filter((item) => item !== tag))}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+                <button
+                  type="button"
+                  className="btn btn--link tech-select__active-clear"
+                  onClick={() => setActiveTags([])}
+                >
+                  清空
+                </button>
+              </div>
+            )}
+
+            {tagPool.length > 0 && (
+              <div className={`tech-select__tags${tagsExpanded ? ' is-expanded' : ''}`}>
+                <button
+                  type="button"
+                  className={`tag-filter__item${activeTags.length === 0 ? ' is-active' : ''}`}
+                  onClick={() => setActiveTags([])}
+                >
+                  全部 {techniques.length}
+                </button>
+                {shownTags.map(([tag, count]) => (
+                  <button
+                    key={tag}
+                    type="button"
+                    className="tag-filter__item"
+                    onClick={() => setActiveTags((prev) => [...prev, tag])}
+                  >
+                    {tag} <span className="tag-filter__count">{count}</span>
+                  </button>
+                ))}
+                {tagPool.length > TAG_LIMIT && (
                   <button
                     type="button"
-                    className="tag-chip__remove"
-                    aria-label={`取消标签 ${tag}`}
-                    onClick={() => setActiveTags((prev) => prev.filter((item) => item !== tag))}
+                    className="tag-filter__item tag-filter__more"
+                    onClick={() => setTagsExpanded((value) => !value)}
                   >
-                    ×
+                    {tagsExpanded ? '收起' : `+${tagPool.length - TAG_LIMIT} 更多标签`}
                   </button>
-                </span>
-              ))}
-              <button
-                type="button"
-                className="btn btn--link tech-select__active-clear"
-                onClick={() => setActiveTags([])}
-              >
-                清空
-              </button>
-            </div>
-          )}
-
-          {tagPool.length > 0 && (
-            <div className={`tech-select__tags${tagsExpanded ? ' is-expanded' : ''}`}>
-              <button
-                type="button"
-                className={`tag-filter__item${activeTags.length === 0 ? ' is-active' : ''}`}
-                onClick={() => setActiveTags([])}
-              >
-                全部 {techniques.length}
-              </button>
-              {shownTags.map(([tag, count]) => (
-                <button
-                  key={tag}
-                  type="button"
-                  className="tag-filter__item"
-                  onClick={() => setActiveTags((prev) => [...prev, tag])}
-                >
-                  {tag} <span className="tag-filter__count">{count}</span>
-                </button>
-              ))}
-              {tagPool.length > TAG_LIMIT && (
-                <button
-                  type="button"
-                  className="tag-filter__item tag-filter__more"
-                  onClick={() => setTagsExpanded((value) => !value)}
-                >
-                  {tagsExpanded ? '收起' : `+${tagPool.length - TAG_LIMIT} 更多标签`}
-                </button>
-              )}
-            </div>
-          )}
+                )}
+              </div>
+            )}
+          </div>
 
           {filtered.length === 0 ? (
             <p className="empty">没有匹配的技法，换个关键词或取消标签筛选试试。</p>

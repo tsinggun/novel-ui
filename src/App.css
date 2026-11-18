@@ -901,6 +901,22 @@
 }
 
 /* 二层「选择技法」弹窗 */
+/* 搜索 + 标签整体吸顶：列表滚到哪，筛选条都在顶上 */
+.tech-select__sticky {
+  position: sticky;
+  top: -16px;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 0 0 auto;
+  padding: 10px 0 8px;
+  margin: -10px 0 -4px;
+  background: #0f0f0f;
+  box-shadow: 0 14px 16px -16px rgba(0, 0, 0, 0.95);
+}
+
+/* 只有搜索框吸顶（保留旧样式，别的弹窗若复用不受影响） */
 .tech-select__search {
   position: sticky;
   top: -16px;
@@ -910,6 +926,14 @@
   font-size: calc(12px * var(--fs));
   background: #0f0f0f;
   box-shadow: 0 12px 14px -14px rgba(0, 0, 0, 0.9);
+}
+
+/* 已经在吸顶块里，自己就别再吸了 */
+.tech-select__sticky .tech-select__search {
+  position: static;
+  top: auto;
+  z-index: auto;
+  box-shadow: none;
 }
 
 .tech-select__tags {

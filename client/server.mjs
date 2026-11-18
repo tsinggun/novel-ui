@@ -205,7 +205,21 @@ const BROWSER_CANDIDATES = [
   path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Microsoft\\Edge\\Application\\msedge.exe'),
 ]
 
-server.listen(0, '127.0.0.1', async () => {
+// 固定端口，这样窗口刷新/重开都还是同一个地址；被占用时退回随机端口
+const PREFERRED_PORT = Number(process.env.NOVEL_PORT || 23871)
+
+server.on('error', (error) => {
+  if (error.code === 'EADDRINUSE') {
+    console.log(`  端口 ${PREFERRED_PORT} 被占用，改用随机端口`)
+    server.listen(0, '127.0.0.1', onListening)
+  } else {
+    throw error
+  }
+})
+
+server.listen(PREFERRED_PORT, '127.0.0.1', onListening)
+
+async function onListening() {
   const port = server.address().port
   const targetUrl = `http://127.0.0.1:${port}/`
   console.log(`小说构建器 · 便携版`)
@@ -257,4 +271,4 @@ server.listen(0, '127.0.0.1', async () => {
     console.log(`  浏览器启动失败：${error.message}，改用默认浏览器`)
     spawn('cmd', ['/c', 'start', '', targetUrl], { detached: true, stdio: 'ignore' }).unref()
   })
-})
+}

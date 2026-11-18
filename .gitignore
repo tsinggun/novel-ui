@@ -29,3 +29,9 @@ harness-dist
 # Tauri 客户端
 src-tauri/target
 src-tauri/gen
+
+# 便携版运行日志
+client-window.log
+client-window.err
+launcher.log
+

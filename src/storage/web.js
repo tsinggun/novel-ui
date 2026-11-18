@@ -107,9 +107,9 @@ export function createWebStorage() {
      *   - 选作品文件夹（kind='dir'）→ 目录模式（一卡一文件）
      * 不传 path 就让系统弹窗
      */
-    async openDataFile(pathIn, kind) {
+    async openDataFile(pathIn, kind, extra = {}) {
       try {
-        const payload = {}
+        const payload = { ...extra }
         if (pathIn) payload.path = pathIn
         if (kind === 'dir') payload.kind = 'dir'
         const res = await fetch(DATA_FILE_URL, {

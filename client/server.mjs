@@ -752,6 +752,10 @@ async function handleDataFile(req, res) {
       }
       target = await pickFileByDialog()
     }
+    // 新建项目：目录不存在就建（连带父目录）
+    if (body.create === true && !existsSync(path.resolve(target))) {
+      await mkdir(path.resolve(target), { recursive: true })
+    }
     if (!target) {
       json(res, 200, { ok: false, cancelled: true, path: dataFile, mode })
       return

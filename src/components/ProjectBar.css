@@ -103,6 +103,25 @@
   font-size: calc(12.5px * var(--fs));
 }
 
+.path-prompt__field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.path-prompt__field-label {
+  font-size: calc(11px * var(--fs));
+  letter-spacing: 0.1em;
+  color: var(--text-mute);
+}
+
+.path-prompt__preview {
+  margin: 0;
+  font-size: calc(11.5px * var(--fs));
+  color: #cfcfcf;
+  overflow-wrap: anywhere;
+}
+
 .path-prompt__error {
   margin: 0;
   font-size: calc(11.5px * var(--fs));

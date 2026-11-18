@@ -6,6 +6,13 @@ export const DEFAULT_PROMPT_INTRO = `你是一名擅长结合积木要素来写�
  * 把构造器里排列好的积木（前情 → 场景 → 人物 → 情节）拼成提示词。
  * 返回 intro（开头提示词）、body（积木部分）、full（可直接复制的全文）。
  */
+
+/** 说明文字压成一行，避免多行把编号体系顶乱 */
+const oneLine = (text) => (text || '').trim().replace(/\s*\r?\n\s*/g, ' ')
+
+/** 去掉说明末尾多余标点，拼进句子时不会出现「。；」「。。」这种 */
+const stripTail = (text) => oneLine(text).replace(/[。．.；;，,、：:\s]+$/u, '')
+
 export function buildPrompt({
   intro = DEFAULT_PROMPT_INTRO,
   recap = '',
@@ -47,7 +54,7 @@ export function buildPrompt({
         lines.push(`${index + 1}. ${scene.name}（场景设定已在上下文，不再重复）`)
       } else {
         lines.push(`${index + 1}. ${scene.name}`)
-        if (scene.detail) lines.push(`   场景描述：${scene.detail}`)
+        if (scene.detail) lines.push(`   场景描述：${oneLine(scene.detail)}`)
       }
     })
     lines.push('')
@@ -56,7 +63,7 @@ export function buildPrompt({
   // 场景的本章备注是全局的，单独成块，避免被误读成最后一个场景的备注
   if (sceneNote.trim()) {
     lines.push('【本章基调与备注】')
-    lines.push(`   ${sceneNote.trim()}`)
+    lines.push(`   ${oneLine(sceneNote)}`)
     lines.push('   （备注优先于上面的场景描述：有冲突时以备注为准。）')
     lines.push('')
   }
@@ -67,20 +74,20 @@ export function buildPrompt({
     characters.forEach((person, index) => {
       if (charInCtx.has(person.id)) {
         lines.push(`${index + 1}. ${person.name}（人物设定已在上下文，不再重复）`)
-        const note = (characterNotes[person.id] || '').trim()
+        const note = oneLine(characterNotes[person.id])
         if (note) lines.push(`   本章备注：${note}`)
       } else {
         lines.push(`${index + 1}. ${person.name}`)
-        if (person.detail) lines.push(`   人物背景：${person.detail}`)
-        const note = (characterNotes[person.id] || '').trim()
+        if (person.detail) lines.push(`   人物背景：${oneLine(person.detail)}`)
+        const note = oneLine(characterNotes[person.id])
         if (note) lines.push(`   本章备注：${note}`)
       }
     })
     lines.push('')
   }
 
-  // 技法说明直接写进这一条情节里，不再单独成块：
-  // 这样「情节 + 用哪个技法 + 这个技法怎么用」永远在同一行，AI 不会只读到技法名。
+  // 情节卡：每条情节独立成块 —— 情节文本、字数、用到的技法（名字 + 用法说明）全在同一个块里。
+  // 技法说明必须写在这里，AI 才可能照着写；只写技法名等于没写。
   if (plots.length > 0) {
     lines.push('【情节卡】')
     plots.forEach((plot, index) => {
@@ -88,29 +95,21 @@ export function buildPrompt({
         .map((id) => techniques.find((item) => item.id === id))
         .filter(Boolean)
 
-      lines.push(`${index + 1}. ${plot.content}`)
+      const content = oneLine(plot.content) || '（这条情节卡是空的）'
+      lines.push(`${index + 1}. ${content}`)
 
-      // 情节和它的写作要求（字数 + 技法名 + 技法说明）放在同一个块里
-      const requirements = []
-      if (plot.wordCount > 0) requirements.push(`约 ${plot.wordCount} 字`)
+      if (plot.wordCount > 0) lines.push(`   字数：约 ${plot.wordCount} 字`)
 
-      if (techList.length === 1) {
-        const tech = techList[0]
-        requirements.push(
-          `用「${tech.name}」来写${tech.detail?.trim() ? `（${tech.detail.trim()}）` : ''}`,
-        )
-      } else if (techList.length > 1) {
-        const names = techList.map((tech) => `「${tech.name}」`).join('、')
-        const notes = techList
-          .filter((tech) => tech.detail?.trim())
-          .map((tech) => `「${tech.name}」：${tech.detail.trim()}`)
-        requirements.push(`同时用${names}来写${notes.length > 0 ? `（${notes.join('；')}）` : ''}`)
-      }
-
-      if (requirements.length > 0) {
-        lines.push(`   写作要求：${requirements.join('；')}。`)
+      if (techList.length > 0) {
+        const hint = techList.length > 1 ? '（下面这几样要同时用上，不是任选其一）' : ''
+        lines.push(`   写作技法${hint}：`)
+        techList.forEach((tech) => {
+          const note = stripTail(tech.detail)
+          lines.push(`     · ${tech.name}${note ? ` —— ${note}` : '（这张技法卡还没填用法说明）'}`)
+        })
       }
     })
+    lines.push('')
   }
 
   const body = lines.join('\n').trim()

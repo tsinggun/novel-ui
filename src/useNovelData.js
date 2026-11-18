@@ -16,6 +16,8 @@ const emptyData = {
   promptIntro: null,
   /** 情节内容的字号（px），阅读和编辑共用 */
   plotFontSize: 14,
+  /** 前情提要：上一章结尾或必要前情，留空则不输出 */
+  previousRecap: '',
 }
 
 const PLOT_FONT_MIN = 12
@@ -47,10 +49,12 @@ const normalize = (raw) => {
     characterNotes: { ...(raw.characterNotes || {}) },
     promptIntro: typeof raw.promptIntro === 'string' ? raw.promptIntro : null,
     plotFontSize: Number(raw.plotFontSize) || 14,
+    previousRecap: typeof raw.previousRecap === 'string' ? raw.previousRecap : '',
   }
 }
 
-const load = () => {
+/** 只在读取本地兜底时用；磁盘可用时不会用到 */
+const loadLocal = () => {
   try {
     return normalize(JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'))
   } catch {
@@ -58,37 +62,48 @@ const load = () => {
   }
 }
 
+const isBlank = (d) =>
+  d.characters.length === 0 &&
+  d.scenes.length === 0 &&
+  d.techniques.length === 0 &&
+  d.plots.length === 0
+
 export function useNovelData() {
-  const [data, setData] = useState(load)
+  /* 先空着，等磁盘那份回来再铺数据，避免用空状态覆盖磁盘 */
+  const [data, setData] = useState(() => normalize(null))
+  const [loaded, setLoaded] = useState(false)
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
-    } catch {
-      /* 隐私模式下忽略写入失败 */
-    }
-    /* 同时落盘一份，避免换端口（localStorage 按源隔离）后数据消失 */
-    saveRemoteState(data)
-  }, [data])
-
-  /* 启动时如果本地是空的，或者磁盘那份更新，就用磁盘的 */
+  /* 启动：磁盘优先，磁盘没有才用 localStorage 兜底 */
   useEffect(() => {
     let alive = true
     ;(async () => {
       const remote = await loadRemoteState()
-      if (!alive || !remote || !remote.data) return
-      let localAt = 0
-      try {
-        localAt = Number(localStorage.getItem(STORAGE_KEY + '.at')) || 0
-      } catch {
-        localAt = 0
+      if (!alive) return
+      if (remote && remote.data) {
+        const next = normalize(remote.data)
+        if (!isBlank(next) || isBlank(loadLocal())) setData(next)
+        else setData(loadLocal())
+        setLoaded(true)
+        return
       }
-      const emptyLocal =
-        !Array.isArray(data.characters) || data.characters.length + data.scenes.length + data.techniques.length + data.plots.length === 0
-      if (emptyLocal || remote.updatedAt > localAt) {
-        setData(normalize(remote.data))
+      setData(loadLocal())
+      setLoaded(true)
+    })()
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  /* 数据变化 → 落本地文件；磁盘写不了才退回 localStorage */
+  useEffect(() => {
+    if (!loaded) return
+    let alive = true
+    ;(async () => {
+      const ok = await saveRemoteState(data)
+      if (!alive) return
+      if (!ok) {
         try {
-          localStorage.setItem(STORAGE_KEY + '.at', String(remote.updatedAt || Date.now()))
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
         } catch {
           /* ignore */
         }
@@ -97,8 +112,7 @@ export function useNovelData() {
     return () => {
       alive = false
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [data, loaded])
 
   /** 新建或更新人物卡（draft 带 id 即为编辑） */
   const saveCharacter = useCallback((draft) => {
@@ -314,6 +328,11 @@ export function useNovelData() {
     }))
   }, [])
 
+  /** 前情提要（可为空） */
+  const setPreviousRecap = useCallback((value) => {
+    setData((prev) => ({ ...prev, previousRecap: value }))
+  }, [])
+
   return {
     data,
     saveCharacter,
@@ -331,5 +350,6 @@ export function useNovelData() {
     setCharacterNote,
     setPromptIntro,
     setPlotFontSize,
+    setPreviousRecap,
   }
 }

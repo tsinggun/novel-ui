@@ -39,6 +39,7 @@ export default function BuilderPage({ novel, onNavigate }) {
 
   const prompt = buildPrompt({
     intro,
+    recap: data.previousRecap || '',
     scenes: sceneItems,
     characters: characterItems,
     plots: data.plots,
@@ -189,6 +190,20 @@ export default function BuilderPage({ novel, onNavigate }) {
           {notice && <span className="tool-hint">{notice}</span>}
         </div>
       </header>
+
+      <Card title="前情提要" meta="可选" className="card--frame">
+        <label className="label" htmlFor="previous-recap">
+          上一章结尾 / 必要前情
+        </label>
+        <textarea
+          id="previous-recap"
+          className="input input--area"
+          placeholder="上一章最后发生了什么、谁在什么状态、留下了什么悬念……留空就不发给 AI。"
+          value={data.previousRecap || ''}
+          onChange={(event) => novel.setPreviousRecap(event.target.value)}
+        />
+        <span className="card__hint">建议 100–300 字：只写必要前情，太长会挤占正文的上下文</span>
+      </Card>
 
       <Card
         title="场景卡"

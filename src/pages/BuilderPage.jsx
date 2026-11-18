@@ -692,6 +692,8 @@ export default function BuilderPage({ novel, onNavigate }) {
         body={prompt.body}
         full={prompt.full}
         customised={data.promptIntro !== null}
+        missingTechNotes={prompt.missingTechNotes}
+        onNavigate={() => onNavigate('technique')}
         onIntroChange={(value) => novel.setPromptIntro(value)}
         onReset={() => novel.setPromptIntro(null)}
         onClose={() => setPreviewOpen(false)}

@@ -7,8 +7,10 @@ export default function PromptPreview({
   body,
   full,
   customised,
+  missingTechNotes,
   onIntroChange,
   onReset,
+  onNavigate,
   onClose,
 }) {
   const [copied, setCopied] = useState(false)
@@ -85,6 +87,17 @@ export default function PromptPreview({
             onChange={(event) => onIntroChange(event.target.value)}
           />
         </div>
+
+        {Array.isArray(missingTechNotes) && missingTechNotes.length > 0 && (
+          <p className="preview__warn" role="status">
+            这些技法卡没写「用法说明」，提示词里只剩名字：{missingTechNotes.join('、')}
+            {onNavigate && (
+              <button type="button" className="btn btn--link" onClick={onNavigate}>
+                去技法卡页补
+              </button>
+            )}
+          </p>
+        )}
 
         {body ? (
           <pre className="preview__body">{body}</pre>

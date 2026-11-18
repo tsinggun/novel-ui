@@ -16,7 +16,7 @@ export function buildPrompt({
   sceneNote = '',
   techniques = [],
 }) {
-  // 情节实际用到的技法（去重，保持首次出现顺序）
+  // 情节实际用到的技法（去重，保持首次出现顺序）；用于提示词预览里提示「哪些技法还没写用法说明」
   const usedTechniques = []
   plots.forEach((plot) => {
     ;(plot.techniqueIds || []).forEach((techId) => {
@@ -61,15 +61,8 @@ export function buildPrompt({
     lines.push('')
   }
 
-  // 技法说明集中在前面说一次，情节里只留名字，避免同一条说明反复出现
-  if (usedTechniques.length > 0) {
-    lines.push('【本章技法】')
-    usedTechniques.forEach((tech, index) => {
-      lines.push(`${index + 1}. ${tech.name}${tech.detail ? ` —— ${tech.detail}` : ''}`)
-    })
-    lines.push('')
-  }
-
+  // 技法说明直接写进这一条情节里，不再单独成块：
+  // 这样「情节 + 用哪个技法 + 这个技法怎么用」永远在同一行，AI 不会只读到技法名。
   if (plots.length > 0) {
     lines.push('【情节卡】')
     plots.forEach((plot, index) => {
@@ -79,12 +72,21 @@ export function buildPrompt({
 
       lines.push(`${index + 1}. ${plot.content}`)
 
-      // 情节和它的写作要求（字数 + 技法名）放在同一个块里
+      // 情节和它的写作要求（字数 + 技法名 + 技法说明）放在同一个块里
       const requirements = []
       if (plot.wordCount > 0) requirements.push(`约 ${plot.wordCount} 字`)
-      if (techList.length === 1) requirements.push(`用「${techList[0].name}」来写`)
-      else if (techList.length > 1) {
-        requirements.push(`同时用${techList.map((tech) => `「${tech.name}」`).join('、')}来写`)
+
+      if (techList.length === 1) {
+        const tech = techList[0]
+        requirements.push(
+          `用「${tech.name}」来写${tech.detail?.trim() ? `（${tech.detail.trim()}）` : ''}`,
+        )
+      } else if (techList.length > 1) {
+        const names = techList.map((tech) => `「${tech.name}」`).join('、')
+        const notes = techList
+          .filter((tech) => tech.detail?.trim())
+          .map((tech) => `「${tech.name}」：${tech.detail.trim()}`)
+        requirements.push(`同时用${names}来写${notes.length > 0 ? `（${notes.join('；')}）` : ''}`)
       }
 
       if (requirements.length > 0) {
@@ -97,5 +99,8 @@ export function buildPrompt({
   const introText = intro.trim()
   const full = `${introText ? `${introText}\n\n` : ''}${body}`.trimEnd() + '\n'
 
-  return { intro, body, full }
+  // 用到了但没写「用法说明」的技法：预览里要提示去补，否则 AI 只看到一个名字
+  const missingTechNotes = usedTechniques.filter((tech) => !tech.detail?.trim()).map((tech) => tech.name)
+
+  return { intro, body, full, missingTechNotes }
 }

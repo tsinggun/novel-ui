@@ -88,6 +88,21 @@
   line-height: 1.7;
 }
 
+.preview__warn {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0 18px;
+  padding: 8px 10px;
+  border: 1px dashed #8a6a6a;
+  background: #1c1414;
+  color: #e4c8c8;
+  font-size: calc(11.5px * var(--fs));
+  line-height: 1.6;
+  letter-spacing: 0.04em;
+}
+
 .preview__body {
   flex: 1;
   min-height: 0;

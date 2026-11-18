@@ -53,6 +53,13 @@ function App() {
     setPreviewOpen(true)
   }
 
+  // 导航排序用的「引用次数」：人物/场景看已加入构建器的数量，技法看被情节引用的总次数
+  const usage = {
+    character: novel.data.inBuilder.characters.length,
+    scene: novel.data.inBuilder.scenes.length,
+    technique: novel.data.plots.reduce((sum, plot) => sum + (plot.techniqueIds?.length || 0), 0),
+  }
+
   const quit = () => {
     window.close()
     // --app 窗口允许自关；万一被浏览器拦下，给一句提示
@@ -107,6 +114,7 @@ function App() {
           <span className="sidebar__caption">视图</span>
           <NavTabs
             value={tab}
+            usage={usage}
             onChange={(id) => {
               setPreviewOpen(false)
               setTab(id)

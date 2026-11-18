@@ -42,8 +42,9 @@ export default function TechniquePage({ novel }) {
     setActiveTags((prev) => (prev.includes(tag) ? prev.filter((item) => item !== tag) : [...prev, tag]))
   }
 
+  // 多个标签是「同时满足」：选 A+B 只显示同时带 A 和 B 的技法卡（不是并集）
   const matchesFilter = (item) =>
-    activeTags.length === 0 || activeTags.some((tag) => (item.tags || []).includes(tag))
+    activeTags.length === 0 || activeTags.every((tag) => (item.tags || []).includes(tag))
 
   // 卡片检索：标题（技法名）+ 标签都能命中；多个条件全都要满足，和标签筛选也是「同时满足」
   const tagFiltered = data.techniques.filter((item) => matchesFilter(item))
@@ -163,7 +164,7 @@ export default function TechniquePage({ novel }) {
             )}
             {activeTags.length > 0 && (
               <span className="tag-filter__hint">
-                已选 {activeTags.length} 个标签 · 命中 {tagFiltered.length} 张
+                已选 {activeTags.length} 个标签（需同时满足）· 命中 {tagFiltered.length} 张
                 <button type="button" className="btn btn--link" onClick={() => setActiveTags([])}>
                   清空
                 </button>

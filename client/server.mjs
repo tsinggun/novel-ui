@@ -218,6 +218,12 @@ server.listen(0, '127.0.0.1', async () => {
       '--no-first-run',
       '--no-default-browser-check',
       '--disable-features=msEdgeSidebarV2,msEdgeTabPreloading',
+      // 关掉后台自更新/同步，避免弹「无法更新 Microsoft Edge」这类窗口
+      '--disable-component-update',
+      '--disable-background-networking',
+      '--disable-sync',
+      '--no-service-autorun',
+      '--no-experimental-drop-shadow',
     ],
     { stdio: 'ignore' },
   )

@@ -13,8 +13,8 @@
  */
 
 import { createServer } from 'node:http'
-import { existsSync } from 'node:fs'
-import { copyFile, mkdir, readdir, readFile, rename, rm, stat, unlink, writeFile } from 'node:fs/promises'
+import { appendFileSync, existsSync } from 'node:fs'
+import { appendFile, copyFile, mkdir, readdir, readFile, rename, rm, stat, unlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
@@ -28,6 +28,22 @@ const appRoot = path.join(os.homedir(), 'Documents', 'NovelUI')
 const lastFileRecord = path.join(appRoot, 'last-file.txt')
 /** 默认数据文件（第一次启动时的落点） */
 const defaultDataFile = path.join(appRoot, 'default', 'project.json')
+/** 启动日志：双击启动（无黑窗）时看不到控制台，出问题就看这个文件 */
+const logFile = path.join(appRoot, 'client.log')
+
+/* 控制台输出同时写一份到 client.log，方便排查「双击没反应」 */
+const rawLog = console.log.bind(console)
+const stamp = () => new Date().toLocaleString('zh-CN', { hour12: false })
+console.log = (...args) => {
+  const line = args.map((item) => (typeof item === 'string' ? item : String(item))).join(' ')
+  rawLog(line)
+  // 同步写，保证 process.exit 之前这行一定落到文件里
+  try {
+    appendFileSync(logFile, `[${stamp()}] ${line}\n`, 'utf8')
+  } catch {
+    /* 日志写不了就算了，不影响启动 */
+  }
+}
 
 const BACKUP_KEEP = 10
 
@@ -457,10 +473,10 @@ Write-Output $count
   })
 }
 
-/** 用浏览器 --app 开一个没有地址栏的窗口 */
+/** 用浏览器 --app 开一个没有地址栏的窗口（Chrome → Edge 逐个试，失败才用默认浏览器） */
 async function openAppWindow(targetUrl) {
-  const browser = BROWSER_CANDIDATES.find((item) => item && existsSync(item))
-  if (!browser) {
+  const candidates = BROWSER_CANDIDATES.filter((item) => item && existsSync(item))
+  if (candidates.length === 0) {
     console.log('  没找到 Chrome / Edge，用系统默认浏览器打开')
     spawn('cmd', ['/c', 'start', '', targetUrl], { detached: true, stdio: 'ignore' }).unref()
     return
@@ -473,35 +489,53 @@ async function openAppWindow(targetUrl) {
     await rm(path.join(profileDir, lock), { force: true, recursive: true }).catch(() => {})
   }
 
-  const child = spawn(
-    browser,
-    [
-      `--app=${targetUrl}`,
-      '--new-window',
-      '--window-size=1360,900',
-      `--user-data-dir=${profileDir}`,
-      '--no-first-run',
-      '--no-default-browser-check',
-      '--disable-features=msEdgeSidebarV2,msEdgeTabPreloading',
-      // 关掉后台自更新/同步，避免弹「无法更新」这类窗口
-      '--disable-component-update',
-      '--disable-background-networking',
-      '--disable-sync',
-      '--no-service-autorun',
-      '--no-experimental-drop-shadow',
-    ],
-    { stdio: 'ignore', detached: false },
-  )
+  const launch = (browser) => {
+    console.log(`  正在用 ${path.basename(browser)} 打开窗口…`)
+    return spawn(
+      browser,
+      [
+        `--app=${targetUrl}`,
+        '--new-window',
+        '--window-size=1360,900',
+        `--user-data-dir=${profileDir}`,
+        '--no-first-run',
+        '--no-default-browser-check',
+        '--disable-features=msEdgeSidebarV2,msEdgeTabPreloading',
+        // 关掉后台自更新/同步，避免弹「无法更新」这类窗口
+        '--disable-component-update',
+        '--disable-background-networking',
+        '--disable-sync',
+        '--no-service-autorun',
+        '--no-experimental-drop-shadow',
+      ],
+      { stdio: 'ignore', detached: false },
+    )
+  }
 
-  // 启动器把窗口交给已运行的主进程后自己就退出了，所以不能跟着它退出，
-  // 否则服务一关窗口立刻变成「无法访问此网站」。
-  child.on('exit', (code) => {
-    console.log(`  已打开窗口（启动器退出码 ${code ?? 0}），服务继续运行。`)
-  })
-  child.on('error', (error) => {
-    console.log(`  浏览器启动失败：${error.message}，改用默认浏览器`)
-    spawn('cmd', ['/c', 'start', '', targetUrl], { detached: true, stdio: 'ignore' }).unref()
-  })
+  for (const browser of candidates) {
+    const child = launch(browser)
+    const failed = await new Promise((resolve) => {
+      const timer = setTimeout(() => resolve(null), 1200)
+      child.once('error', (error) => {
+        clearTimeout(timer)
+        resolve(error)
+      })
+      child.once('spawn', () => {
+        clearTimeout(timer)
+        // 启动器交接给主进程后会自己退出，所以不跟它一起退
+        child.once('exit', (code) => {
+          console.log(`  窗口已交给 ${path.basename(browser)} 主进程（启动器退出码 ${code ?? 0}），服务继续运行。`)
+        })
+        resolve(null)
+      })
+    })
+
+    if (!failed) return
+    console.log(`  ${path.basename(browser)} 启动失败：${failed.message}，换下一个`)
+  }
+
+  console.log('  浏览器都启动失败，改用系统默认浏览器')
+  spawn('cmd', ['/c', 'start', '', targetUrl], { detached: true, stdio: 'ignore' }).unref()
 }
 
 /* 单实例：已经有一份在跑就不要再起服务、更不要再开第二个窗口 */

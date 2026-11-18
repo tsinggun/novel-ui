@@ -478,6 +478,38 @@ Write-Output $count
   })
 }
 
+/** 把已经开着的窗口提到前面（双击启动器时给个反馈，不然像是「没反应」） */
+function focusAppWindow() {
+  const script = `
+$win = Get-Process chrome,msedge -ErrorAction SilentlyContinue |
+  Where-Object { $_.MainWindowTitle -eq '小说构建器' } |
+  Select-Object -First 1
+if ($win) {
+  $shell = New-Object -ComObject WScript.Shell
+  [void]$shell.AppActivate($win.Id)
+  Write-Output 'ok'
+} else {
+  Write-Output 'none'
+}
+`.trim()
+
+  return new Promise((resolve) => {
+    const powershell = process.env.SystemRoot
+      ? path.join(process.env.SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
+      : 'powershell.exe'
+    const child = spawn(powershell, ['-NoProfile', '-Command', script], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
+    })
+    let out = ''
+    child.stdout.on('data', (chunk) => {
+      out += chunk.toString('utf8')
+    })
+    child.on('error', () => resolve(false))
+    child.on('close', () => resolve(out.trim().includes('ok')))
+  })
+}
+
 /** 用浏览器 --app 开一个没有地址栏的窗口（Chrome → Edge 逐个试，失败才用默认浏览器） */
 async function openAppWindow(targetUrl) {
   const candidates = BROWSER_CANDIDATES.filter((item) => item && existsSync(item))
@@ -513,21 +545,22 @@ async function openAppWindow(targetUrl) {
         '--no-service-autorun',
         '--no-experimental-drop-shadow',
       ],
-      { stdio: 'ignore', detached: false },
+      { stdio: 'ignore', detached: true },
     )
   }
 
   for (const browser of candidates) {
     const child = launch(browser)
     const failed = await new Promise((resolve) => {
-      const timer = setTimeout(() => resolve(null), 1200)
+      // 只认 spawn 事件，超时算失败：进程没起来就换下一个浏览器
+      const timer = setTimeout(() => resolve(new Error('启动超时')), 5000)
       child.once('error', (error) => {
         clearTimeout(timer)
         resolve(error)
       })
       child.once('spawn', () => {
         clearTimeout(timer)
-        // 启动器交接给主进程后会自己退出，所以不跟它一起退
+        // 启动器会把窗口交接给已运行的主进程后自己退出，所以不跟它一起退
         child.once('exit', (code) => {
           console.log(`  窗口已交给 ${path.basename(browser)} 主进程（启动器退出码 ${code ?? 0}），服务继续运行。`)
         })
@@ -535,7 +568,11 @@ async function openAppWindow(targetUrl) {
       })
     })
 
-    if (!failed) return
+    if (!failed) {
+      // 给浏览器一点时间真正把窗口画出来，调用方随后才退出
+      await new Promise((resolve) => setTimeout(resolve, 1500))
+      return
+    }
     console.log(`  ${path.basename(browser)} 启动失败：${failed.message}，换下一个`)
   }
 
@@ -548,7 +585,8 @@ const running = await hasRunningInstance()
 if (running && !process.argv.includes('--no-window')) {
   const alreadyOpen = await hasAppWindow()
   if (alreadyOpen) {
-    console.log('  已经有一个「小说构建器」窗口开着，不再重复启动。')
+    console.log('  已经有一个「小说构建器」窗口开着，把它提到前面。')
+    await focusAppWindow()
     console.log(`  地址：http://127.0.0.1:${PREFERRED_PORT}/`)
     process.exit(0)
   }

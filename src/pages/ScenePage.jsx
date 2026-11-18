@@ -2,7 +2,7 @@ import { useState } from 'react'
 import Card from '../components/Card'
 import CardSearch from '../components/CardSearch'
 import EntityCard from '../components/EntityCard'
-import EntityFormCard from '../components/EntityFormCard'
+import EntityCreateModal from '../components/EntityCreateModal'
 import { matchEveryTerm } from '../searchTerms'
 
 export default function ScenePage({ novel }) {
@@ -56,20 +56,6 @@ export default function ScenePage({ novel }) {
 
       {(draft || data.scenes.length > 0) && (
         <div className="card-grid">
-          {draft && !draft.id && (
-            <EntityFormCard
-              title="创建场景"
-              nameLabel="场景名称"
-              namePlaceholder="例如：城南旧书店的雨夜"
-              detailLabel="详情 / 场景描述"
-              detailPlaceholder="时间、地点、氛围、在场人物、发生的事件……"
-              draft={draft}
-              onChange={setDraft}
-              onSave={handleSave}
-              onCancel={cancel}
-            />
-          )}
-
           {visibleScenes.length === 0 && terms.length > 0 && (
             <Card className="card--empty">
               <p className="empty">
@@ -103,6 +89,19 @@ export default function ScenePage({ novel }) {
       <p className="page__foot">
         共 {data.scenes.length} 张场景卡 · 已加入构建器 {data.inBuilder.scenes.length} 张
       </p>
+
+      <EntityCreateModal
+        open={Boolean(draft)}
+        title="创建场景"
+        nameLabel="场景名称"
+        namePlaceholder="例如：城南旧书店的雨夜"
+        detailLabel="详情 / 场景描述"
+        detailPlaceholder="时间、地点、氛围、在场人物、发生的事件……"
+        draft={draft}
+        onChange={setDraft}
+        onSave={handleSave}
+        onCancel={cancel}
+      />
     </section>
   )
 }

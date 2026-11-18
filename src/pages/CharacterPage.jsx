@@ -2,7 +2,7 @@ import { useState } from 'react'
 import Card from '../components/Card'
 import CardSearch from '../components/CardSearch'
 import EntityCard from '../components/EntityCard'
-import EntityFormCard from '../components/EntityFormCard'
+import EntityCreateModal from '../components/EntityCreateModal'
 import { matchEveryTerm } from '../searchTerms'
 
 export default function CharacterPage({ novel }) {
@@ -56,20 +56,6 @@ export default function CharacterPage({ novel }) {
 
       {(draft || data.characters.length > 0) && (
         <div className="card-grid">
-          {draft && !draft.id && (
-            <EntityFormCard
-              title="创建人物"
-              nameLabel="姓名"
-              namePlaceholder="例如：林见月"
-              detailLabel="详情 / 人物故事"
-              detailPlaceholder="出身、性格、执念、与主角的关系、关键经历……"
-              draft={draft}
-              onChange={setDraft}
-              onSave={handleSave}
-              onCancel={cancel}
-            />
-          )}
-
           {visibleCharacters.length === 0 && terms.length > 0 && (
             <Card className="card--empty">
               <p className="empty">
@@ -103,6 +89,20 @@ export default function CharacterPage({ novel }) {
       <p className="page__foot">
         共 {data.characters.length} 张人物卡 · 已加入构建器 {data.inBuilder.characters.length} 张
       </p>
+
+      <EntityCreateModal
+        open={Boolean(draft)}
+        title="创建人物"
+        nameLabel="姓名"
+        namePlaceholder="例如：林见月"
+        detailLabel="详情 / 人物故事"
+        detailPlaceholder="出身、性格、执念、与主角的关系、关键经历……"
+        draft={draft}
+        onChange={setDraft}
+        onSave={handleSave}
+        onCancel={cancel}
+      />
     </section>
   )
 }
+

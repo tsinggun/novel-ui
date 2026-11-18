@@ -2,7 +2,7 @@ import { useState } from 'react'
 import Card from '../components/Card'
 import CardSearch from '../components/CardSearch'
 import EntityCard from '../components/EntityCard'
-import EntityFormCard from '../components/EntityFormCard'
+import EntityCreateModal from '../components/EntityCreateModal'
 import { matchEveryTerm } from '../searchTerms'
 
 export default function TechniquePage({ novel }) {
@@ -173,22 +173,6 @@ export default function TechniquePage({ novel }) {
 
       {(draft || data.techniques.length > 0) && (
         <div className="card-grid">
-          {draft && !draft.id && (
-            <EntityFormCard
-              title="创建技法"
-              nameLabel="技法名称"
-              namePlaceholder="例如：慢镜头、限知视角、物件寄托"
-              detailLabel="用法说明"
-              detailPlaceholder="这个技法怎么用、适合放在什么样的情节里、要注意什么……"
-              draft={draft}
-              onChange={setDraft}
-              onSave={handleSave}
-              onCancel={cancel}
-              tags={draft.tags}
-              onTagsChange={(tags) => setDraft((prev) => ({ ...prev, tags }))}
-            />
-          )}
-
           {visibleTechniques.length === 0 && (
             <Card className="card--empty">
               <p className="empty">
@@ -231,6 +215,20 @@ export default function TechniquePage({ novel }) {
         共 {data.techniques.length} 张技法卡
         {activeTags.length > 0 && ` · 当前显示 ${visibleTechniques.length} 张`} · 在构造器添加情节时可勾选
       </p>
+
+      <EntityCreateModal
+        open={Boolean(draft)}
+        title="创建技法"
+        nameLabel="技法名称"
+        namePlaceholder="例如：慢镜头、限知视角、物件寄托"
+        detailLabel="用法说明"
+        detailPlaceholder="这个技法怎么用、适合放在什么样的情节里、要注意什么……"
+        tags={draft?.tags}
+        draft={draft}
+        onChange={setDraft}
+        onSave={handleSave}
+        onCancel={cancel}
+      />
     </section>
   )
 }

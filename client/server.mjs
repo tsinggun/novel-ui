@@ -604,13 +604,11 @@ function pickByDialog(kind) {
   const resultFile = path.join(os.tmpdir(), `novelui-pick-${process.pid}-${Date.now()}.txt`)
   // PowerShell 单引号字符串不转义反斜杠，用正斜杠更稳（Windows 一样能打开）
   const psResultFile = resultFile.replace(/'/g, "''").replace(/\\/g, '/')
-  const isFolder = kind === 'folder'
 
-  const script = `
-[Console]::OutputEncoding = [Text.Encoding]::UTF8
+  // 一个置顶的隐形父窗口做 owner，否则对话框会跑到应用窗口后面去
+  const ownerBlock = `
 Add-Type -AssemblyName System.Windows.Forms | Out-Null
 Add-Type -AssemblyName System.Drawing | Out-Null
-# 用一个置顶的隐形父窗口做 owner，否则对话框会跑到应用窗口后面去
 $owner = New-Object System.Windows.Forms.Form
 $owner.Text = '载入数据'
 $owner.TopMost = $true
@@ -622,48 +620,108 @@ $owner.Height = 1
 $owner.Opacity = 0
 $owner.Show()
 $owner.Activate()
+`.trim()
+
+  // 作品目录：自己画一个小窗，路径可以直接粘贴（和「浏览文件」一样能敲路径，而且不会有旧式树状框）
+  const pathDialogScript = `
+[Console]::OutputEncoding = [Text.Encoding]::UTF8
+Add-Type -AssemblyName System.Windows.Forms | Out-Null
+Add-Type -AssemblyName System.Drawing | Out-Null
+
+$form = New-Object System.Windows.Forms.Form
+$form.Text = '选择作品文件夹'
+$form.TopMost = $true
+$form.FormBorderStyle = 'FixedDialog'
+$form.StartPosition = 'CenterScreen'
+$form.MaximizeBox = $false
+$form.MinimizeBox = $false
+$form.ClientSize = New-Object System.Drawing.Size(620, 132)
+
+$label = New-Object System.Windows.Forms.Label
+$label.Text = '文件夹路径（可直接粘贴，或用「浏览…」挑）'
+$label.SetBounds(14, 14, 580, 20)
+$box = New-Object System.Windows.Forms.TextBox
+$box.SetBounds(14, 40, 496, 26)
+$browse = New-Object System.Windows.Forms.Button
+$browse.Text = '浏览…'
+$browse.SetBounds(518, 39, 88, 28)
+$browse.Add_Click({
+  $dlg = New-Object System.Windows.Forms.FolderBrowserDialog
+  if ($box.Text.Trim()) { $dlg.SelectedPath = $box.Text.Trim().Trim('"') }
+  if ($dlg.ShowDialog($form) -eq [System.Windows.Forms.DialogResult]::OK) { $box.Text = $dlg.SelectedPath }
+}.GetNewClosure())
+$ok = New-Object System.Windows.Forms.Button
+$ok.Text = '确定'
+$ok.SetBounds(420, 88, 88, 30)
+$cancel = New-Object System.Windows.Forms.Button
+$cancel.Text = '取消'
+$cancel.SetBounds(518, 88, 88, 30)
+$cancel.Add_Click({ $form.Close() }.GetNewClosure())
+$ok.Add_Click({
+  $text = $box.Text.Trim().Trim('"')
+  if (-not $text) { [System.Windows.Forms.MessageBox]::Show($form, '请先填一个文件夹路径。', '提示') | Out-Null; return }
+  try {
+    if (-not [IO.Path]::IsPathRooted($text)) { $text = [IO.Path]::GetFullPath($text) }
+  } catch {}
+  $form.Tag = $text
+  $form.Close()
+}.GetNewClosure())
+
+$form.Controls.AddRange(@($label, $box, $browse, $ok, $cancel))
+$form.AcceptButton = $ok
+$form.CancelButton = $cancel
+$form.Add_Shown({ $form.Activate(); $box.Focus() })
 
 $value = ''
-if (${isFolder ? '$true' : '$false'}) {
-  $dialog = New-Object System.Windows.Forms.FolderBrowserDialog
-  $dialog.Description = '选择作品文件夹（里面会有 characters / scenes / techniques / plots）'
-  $dialog.ShowNewFolderButton = $true
-  if ($dialog.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK) { $value = $dialog.SelectedPath }
-} else {
-  $dialog = New-Object System.Windows.Forms.OpenFileDialog
-  $dialog.Title = '载入数据文件（json）'
-  $dialog.Filter = 'JSON 数据 (*.json)|*.json|所有文件 (*.*)|*.*'
-  $dialog.CheckFileExists = $true
-  if ($dialog.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK) { $value = $dialog.FileName }
-}
+if ($form.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { $value = [string]$form.Tag }
+[IO.File]::WriteAllText('${psResultFile}', $value, (New-Object System.Text.UTF8Encoding($false)))
+`.trim()
 
-if ($value) {
-  [IO.File]::WriteAllText('${psResultFile}', $value, (New-Object System.Text.UTF8Encoding($false)))
-}
+  const fileScript = `
+[Console]::OutputEncoding = [Text.Encoding]::UTF8
+${ownerBlock}
+
+$dialog = New-Object System.Windows.Forms.OpenFileDialog
+$dialog.Title = '载入数据文件（json）'
+$dialog.Filter = 'JSON 数据 (*.json)|*.json|所有文件 (*.*)|*.*'
+$dialog.CheckFileExists = $true
+$value = ''
+if ($dialog.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK) { $value = $dialog.FileName }
+[IO.File]::WriteAllText('${psResultFile}', $value, (New-Object System.Text.UTF8Encoding($false)))
 $owner.Close()
 `.trim()
 
-  return new Promise((resolve) => {
-    const powershell = process.env.SystemRoot
-      ? path.join(process.env.SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
-      : 'powershell.exe'
-    const child = spawn(powershell, ['-NoProfile', '-STA', '-Command', script], {
-      stdio: ['ignore', 'pipe', 'pipe'],
-      windowsHide: true,
+  const ps51 = process.env.SystemRoot
+    ? path.join(process.env.SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
+    : 'powershell.exe'
+
+  // 跑一次选择框；返回 { ok, value }，ok 表示脚本真的跑完了（用来区分「用户取消」和「解释器起不来」）
+  const run = (exe, script) =>
+    new Promise((resolve) => {
+      let settled = false
+      const done = (result) => {
+        if (settled) return
+        settled = true
+        resolve(result)
+      }
+      const child = spawn(exe, ['-NoProfile', '-STA', '-Command', script], {
+        stdio: ['ignore', 'pipe', 'pipe'],
+        windowsHide: true,
+      })
+      child.on('error', () => done({ ok: false, value: null }))
+      child.on('close', async () => {
+        try {
+          const picked = (await readFile(resultFile, 'utf8')).replace(/^\uFEFF/, '').trim()
+          await unlink(resultFile).catch(() => {})
+          done({ ok: true, value: picked || null })
+        } catch {
+          await unlink(resultFile).catch(() => {})
+          done({ ok: false, value: null })
+        }
+      })
     })
 
-    child.on('error', () => resolve(null))
-    child.on('close', async () => {
-      try {
-        const picked = (await readFile(resultFile, 'utf8')).replace(/^\uFEFF/, '').trim()
-        await unlink(resultFile).catch(() => {})
-        resolve(picked || null)
-      } catch {
-        await unlink(resultFile).catch(() => {})
-        resolve(null)
-      }
-    })
-  })
+  return run(ps51, pathDialogScript).then((result) => result.value)
 }
 
 /** 载入数据：GET 看当前来源，POST 换一个 json 或作品文件夹并返回里面的数据 */

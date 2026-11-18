@@ -112,8 +112,18 @@
   line-height: 1.95;
 }
 
-.detail__editor--tall {
-  min-height: 300px;
+.detail__editor.detail__editor--tall {
+  min-height: 340px;
+}
+
+/* 二层弹窗（例如「选择技法」盖在「添加情节」之上）：层级更高，只关自己 */
+.detail--nested {
+  z-index: 60;
+  background: rgba(4, 4, 4, 0.86);
+}
+
+.detail--nested .detail__dialog {
+  width: min(680px, 100%);
 }
 
 .detail__foot {

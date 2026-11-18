@@ -670,6 +670,181 @@
   white-space: nowrap;
 }
 
+/* 「使用技法」字段：已选成标签，选择走二层弹窗 */
+.tech-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tech-field__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tech-field__meta {
+  font-size: calc(11px * var(--fs));
+  letter-spacing: 0.08em;
+  color: var(--text-mute);
+  margin-left: auto;
+}
+
+.tech-field__open {
+  flex: none;
+}
+
+.tech-field__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tech-field__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px 4px 10px;
+  border: 1px solid #9fb79f;
+  background: #182018;
+}
+
+.tech-field__chip-name {
+  font-size: calc(12px * var(--fs));
+  letter-spacing: 0.08em;
+  color: #dbe6db;
+}
+
+.tech-field__chip-remove {
+  appearance: none;
+  padding: 0 2px;
+  border: none;
+  background: none;
+  color: #9fb79f;
+  font-size: calc(13px * var(--fs));
+  line-height: 1;
+  cursor: pointer;
+}
+
+.tech-field__chip-remove:hover {
+  color: #ffffff;
+}
+
+.tech-field__empty {
+  margin: 0;
+  font-size: calc(11.5px * var(--fs));
+  color: var(--text-mute);
+}
+
+/* 二层「选择技法」弹窗 */
+.tech-select__search {
+  height: 38px;
+  font-size: calc(12px * var(--fs));
+}
+
+.tech-select__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tech-select__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tech-select__card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  background: #171717;
+  color: var(--text-dim);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.tech-select__card:hover {
+  border-color: #cfcfcf;
+  background: #1d1d1d;
+  color: var(--text);
+}
+
+.tech-select__card.is-active {
+  border-color: #9fb79f;
+  background: #182018;
+  color: #eef3ee;
+}
+
+.tech-select__mark {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line-strong);
+  font-size: calc(11.5px * var(--fs));
+  line-height: 1;
+}
+
+.tech-select__card.is-active .tech-select__mark {
+  border-color: #9fb79f;
+  color: #cfdccf;
+}
+
+.tech-select__main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.tech-select__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.tech-select__name {
+  font-size: calc(13px * var(--fs));
+  letter-spacing: 0.1em;
+}
+
+.tech-select__tags-inline {
+  font-size: calc(10.5px * var(--fs));
+  letter-spacing: 0.08em;
+  color: var(--text-mute);
+}
+
+.tech-select__detail {
+  font-size: calc(11.5px * var(--fs));
+  line-height: 1.7;
+  color: var(--text-mute);
+}
+
+.tech-select__card.is-active .tech-select__detail {
+  color: #cddbcd;
+}
+
+.tech-select__detail--empty {
+  color: #a57b7b;
+}
+
 /* 「已在上下文」标记：勾上后提示词不再发这张卡的描述 */
 .chip__ctx {
   appearance: none;

@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import Card from '../components/Card'
 import DetailModal from '../components/DetailModal'
 import PromptPreview from '../components/PromptPreview'
-import TechniquePicker from '../components/TechniquePicker'
+import TechniqueField from '../components/TechniqueField'
 import { buildPrompt, DEFAULT_PROMPT_INTRO } from '../prompt'
 import { exportToDisk } from '../persist'
 
@@ -531,16 +531,11 @@ export default function BuilderPage({ novel, onNavigate }) {
                       }
                     />
 
-                    <TechniquePicker
+                    <TechniqueField
                       techniques={data.techniques}
                       selectedIds={editingPlot.techniqueIds}
-                      onToggle={(id) =>
-                        setEditingPlot((prev) => ({
-                          ...prev,
-                          techniqueIds: prev.techniqueIds.includes(id)
-                            ? prev.techniqueIds.filter((item) => item !== id)
-                            : [...prev.techniqueIds, id],
-                        }))
+                      onChange={(ids) =>
+                        setEditingPlot((prev) => ({ ...prev, techniqueIds: ids }))
                       }
                       onNavigate={onNavigate}
                     />
@@ -676,12 +671,33 @@ export default function BuilderPage({ novel, onNavigate }) {
         }
       >
         <div className="detail__section">
-          <label className="field__label" htmlFor="plot-dialog-content">
-            情节内容
-          </label>
+          <div className="plot-font">
+            <label className="field__label" htmlFor="plot-dialog-content">
+              情节内容
+            </label>
+            <button
+              type="button"
+              className="plot__action"
+              aria-label="缩小情节字号"
+              disabled={fontSize <= 12}
+              onClick={() => novel.setPlotFontSize(fontSize - 1)}
+            >
+              A−
+            </button>
+            <span className="plot-font__value">{fontSize}px</span>
+            <button
+              type="button"
+              className="plot__action"
+              aria-label="放大情节字号"
+              disabled={fontSize >= 22}
+              onClick={() => novel.setPlotFontSize(fontSize + 1)}
+            >
+              A＋
+            </button>
+          </div>
           <textarea
             id="plot-dialog-content"
-            className="input input--area detail__editor"
+            className="input input--area detail__editor detail__editor--tall"
             style={{ fontSize: `calc(${fontSize}px * var(--fs))` }}
             autoFocus
             placeholder="这一条情节发生了什么，谁做了什么，结果如何……"
@@ -709,17 +725,10 @@ export default function BuilderPage({ novel, onNavigate }) {
           />
         </div>
 
-        <TechniquePicker
+        <TechniqueField
           techniques={data.techniques}
           selectedIds={plotDraft.techniqueIds}
-          onToggle={(id) =>
-            setPlotDraft((prev) => ({
-              ...prev,
-              techniqueIds: prev.techniqueIds.includes(id)
-                ? prev.techniqueIds.filter((item) => item !== id)
-                : [...prev.techniqueIds, id],
-            }))
-          }
+          onChange={(ids) => setPlotDraft((prev) => ({ ...prev, techniqueIds: ids }))}
           onNavigate={onNavigate}
         />
 

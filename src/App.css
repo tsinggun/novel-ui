@@ -778,3 +778,44 @@
   letter-spacing: 0.08em;
   color: var(--text-mute);
 }
+
+.tag-filter__hint--mute {
+  color: #5f5f5f;
+}
+
+.tag-filter__side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.tag-filter__side .tag-filter__hint {
+  margin-left: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tag-filter__search {
+  width: 150px;
+  padding: 4px 8px;
+  border: 1px dashed var(--line-strong);
+  background: #101010;
+  color: #ededed;
+  font: inherit;
+  font-size: 11.5px;
+  letter-spacing: 0.08em;
+  outline: none;
+}
+
+.tag-filter__search:focus {
+  border-style: solid;
+  border-color: #d8d8d8;
+}
+
+.tag-chip--more {
+  color: var(--text-mute);
+  cursor: default;
+}

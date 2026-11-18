@@ -7,6 +7,12 @@ export default function TechniquePage({ novel }) {
   const { data } = novel
   const [draft, setDraft] = useState(null)
   const [activeTags, setActiveTags] = useState([])
+  const [tagQuery, setTagQuery] = useState('')
+  const [tagsExpanded, setTagsExpanded] = useState(false)
+
+  // 标签一多就折叠，先只铺这么多个；已选的永远优先显示
+  const TAG_COLLAPSE_AT = 12
+  const TAG_SEARCH_AT = 8
 
   const startCreate = () => setDraft({ name: '', detail: '', tags: [] })
   const cancel = () => setDraft(null)
@@ -17,16 +23,17 @@ export default function TechniquePage({ novel }) {
     setDraft(null)
   }
 
-  // 收集全部标签（按首次出现排序，带张数）
+  // 收集全部标签：使用次数多的排前面，同频按首次出现
   const tagStats = []
   data.techniques.forEach((item) => {
     const itemTags = item.tags || []
     itemTags.forEach((tag) => {
       const found = tagStats.find((entry) => entry.tag === tag)
       if (found) found.count += 1
-      else tagStats.push({ tag, count: 1 })
+      else tagStats.push({ tag, count: 1, order: tagStats.length })
     })
   })
+  tagStats.sort((a, b) => b.count - a.count || a.order - b.order)
 
   const toggleTag = (tag) => {
     setActiveTags((prev) => (prev.includes(tag) ? prev.filter((item) => item !== tag) : [...prev, tag]))
@@ -36,6 +43,20 @@ export default function TechniquePage({ novel }) {
     activeTags.length === 0 || activeTags.some((tag) => (item.tags || []).includes(tag))
 
   const visibleTechniques = data.techniques.filter((item) => matchesFilter(item))
+
+  // 筛选区实际铺出来的标签
+  const query = tagQuery.trim().toLowerCase()
+  const selectedStats = tagStats.filter((entry) => activeTags.includes(entry.tag))
+  const unselectedStats = tagStats.filter((entry) => !activeTags.includes(entry.tag))
+  const queryMatched = query
+    ? tagStats.filter((entry) => entry.tag.toLowerCase().includes(query))
+    : null
+  const shownTagStats = queryMatched
+    ? queryMatched
+    : tagsExpanded
+      ? [...selectedStats, ...unselectedStats]
+      : [...selectedStats, ...unselectedStats.slice(0, Math.max(0, TAG_COLLAPSE_AT - selectedStats.length))]
+  const hiddenTagCount = tagStats.length - shownTagStats.length
 
   return (
     <section className="page">
@@ -60,6 +81,18 @@ export default function TechniquePage({ novel }) {
       {data.techniques.length > 0 && tagStats.length > 0 && (
         <div className="tag-filter">
           <span className="label">按标签筛选</span>
+
+          {tagStats.length > TAG_SEARCH_AT && (
+            <input
+              className="tag-filter__search"
+              type="search"
+              value={tagQuery}
+              placeholder="搜索标签"
+              onChange={(event) => setTagQuery(event.target.value)}
+              aria-label="搜索标签"
+            />
+          )}
+
           <ul className="tag-filter__list">
             <li>
               <button
@@ -70,7 +103,7 @@ export default function TechniquePage({ novel }) {
                 全部 {data.techniques.length}
               </button>
             </li>
-            {tagStats.map(({ tag, count }) => (
+            {shownTagStats.map(({ tag, count }) => (
               <li key={tag}>
                 <button
                   type="button"
@@ -82,12 +115,42 @@ export default function TechniquePage({ novel }) {
                 </button>
               </li>
             ))}
+            {!query && hiddenTagCount > 0 && (
+              <li>
+                <button
+                  type="button"
+                  className="btn btn--link"
+                  onClick={() => setTagsExpanded(true)}
+                >
+                  展开全部（还有 {hiddenTagCount} 个）
+                </button>
+              </li>
+            )}
+            {!query && tagsExpanded && tagStats.length > TAG_COLLAPSE_AT && (
+              <li>
+                <button type="button" className="btn btn--link" onClick={() => setTagsExpanded(false)}>
+                  收起
+                </button>
+              </li>
+            )}
           </ul>
-          {activeTags.length > 0 && (
-            <span className="tag-filter__hint">
-              已选 {activeTags.length} 个标签 · 命中 {visibleTechniques.length} 张
+
+          <div className="tag-filter__side">
+            {queryMatched && queryMatched.length === 0 && (
+              <span className="tag-filter__hint">没有匹配的标签</span>
+            )}
+            {activeTags.length > 0 && (
+              <span className="tag-filter__hint">
+                已选 {activeTags.length} 个标签 · 命中 {visibleTechniques.length} 张
+                <button type="button" className="btn btn--link" onClick={() => setActiveTags([])}>
+                  清空
+                </button>
+              </span>
+            )}
+            <span className="tag-filter__hint tag-filter__hint--mute">
+              共 {tagStats.length} 个标签 · {data.techniques.length} 张卡
             </span>
-          )}
+          </div>
         </div>
       )}
 

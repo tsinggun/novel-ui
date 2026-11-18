@@ -28,6 +28,10 @@ export default function EntityCard({
   const [tagInput, setTagInput] = useState('')
 
   const tagList = Array.isArray(tags) ? tags : null
+  // 卡片上最多平铺 4 个标签，多的折成 +N（弹窗里能看到并编辑全部）
+  const TAG_PREVIEW = 4
+  const previewTags = tagList ? tagList.slice(0, TAG_PREVIEW) : []
+  const hiddenTagCount = tagList ? Math.max(0, tagList.length - TAG_PREVIEW) : 0
 
   const openModal = () => {
     setDraft({
@@ -111,13 +115,18 @@ export default function EntityCard({
           </>
         }
       >
-        {tagList && tagList.length > 0 && (
+        {previewTags.length > 0 && (
           <div className="card__tags">
-            {tagList.map((tag) => (
+            {previewTags.map((tag) => (
               <span key={tag} className="tag-chip tag-chip--static">
                 {tag}
               </span>
             ))}
+            {hiddenTagCount > 0 && (
+              <span className="tag-chip tag-chip--static tag-chip--more" title={tagList.join('、')}>
+                +{hiddenTagCount}
+              </span>
+            )}
           </div>
         )}
 

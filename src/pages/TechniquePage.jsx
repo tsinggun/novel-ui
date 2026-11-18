@@ -52,17 +52,22 @@ export default function TechniquePage({ novel }) {
   )
 
   // 筛选区实际铺出来的标签
+  // 顺序永远按「使用次数 → 首次出现」排，选中的标签只加高亮、不挪位置，
+  // 否则点一下标签它就跳到最前面，整排看起来全乱了。
   const query = tagQuery.trim().toLowerCase()
-  const selectedStats = tagStats.filter((entry) => activeTags.includes(entry.tag))
-  const unselectedStats = tagStats.filter((entry) => !activeTags.includes(entry.tag))
   const queryMatched = query
     ? tagStats.filter((entry) => entry.tag.toLowerCase().includes(query))
     : null
-  const shownTagStats = queryMatched
-    ? queryMatched
-    : tagsExpanded
-      ? [...selectedStats, ...unselectedStats]
-      : [...selectedStats, ...unselectedStats.slice(0, Math.max(0, TAG_COLLAPSE_AT - selectedStats.length))]
+  const selectedStats = tagStats.filter((entry) => activeTags.includes(entry.tag))
+  const shownTagStats = (() => {
+    if (queryMatched) return queryMatched
+    if (tagsExpanded) return tagStats
+    // 收起状态：先铺前 N 个，但已选中的标签无论排多后都要露出来（仍按原顺序）
+    const head = tagStats.slice(0, TAG_COLLAPSE_AT)
+    const keep = new Set(head.map((entry) => entry.tag))
+    selectedStats.forEach((entry) => keep.add(entry.tag))
+    return tagStats.filter((entry) => keep.has(entry.tag))
+  })()
   const hiddenTagCount = tagStats.length - shownTagStats.length
 
   return (

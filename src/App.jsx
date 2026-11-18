@@ -6,20 +6,30 @@ import BuilderPage from './pages/BuilderPage'
 import CharacterPage from './pages/CharacterPage'
 import ScenePage from './pages/ScenePage'
 import TechniquePage from './pages/TechniquePage'
-import LibraryPage from './pages/LibraryPage'
+import { readLocalInfo } from './persist'
 import { useNovelData } from './useNovelData'
 import { useFontScale } from './useFontScale'
-import { useLibrary } from './useLibrary'
 import './App.css'
 
 function App() {
   const [tab, setTab] = useState('builder')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [previewSignal, setPreviewSignal] = useState(0)
+  /** 只有在本地跑（便携版 / 客户端）时才有数据文件条和「退出」 */
+  const [local, setLocal] = useState(false)
   const settingsRef = useRef(null)
   const novel = useNovelData()
-  const library = useLibrary()
   const { scale, step, reset } = useFontScale()
+
+  useEffect(() => {
+    let alive = true
+    readLocalInfo().then((info) => {
+      if (alive) setLocal(Boolean(info))
+    })
+    return () => {
+      alive = false
+    }
+  }, [])
 
   // 点「设置」外面 / 按 Esc 就把面板收起来
   useEffect(() => {
@@ -55,7 +65,7 @@ function App() {
     <div className="shell">
       <header className="topbar">
         <div className="topbar__left">
-          {library.available && <DataBar onLoadData={(data) => novel.applyLoaded(data)} />}
+          {local && <DataBar onLoadData={(data) => novel.applyLoaded(data)} />}
           <button
             type="button"
             className="btn btn--sm topbar__btn"
@@ -84,7 +94,7 @@ function App() {
               </div>
             )}
           </div>
-          {library.available && (
+          {local && (
             <button type="button" className="btn btn--sm topbar__btn" onClick={quit} title="关闭这个窗口">
               退出
             </button>
@@ -95,7 +105,7 @@ function App() {
       <div className="shell__body">
         <aside className="sidebar">
           <span className="sidebar__caption">视图</span>
-          <NavTabs value={tab} onChange={setTab} showLibrary={library.available} layout="side" />
+          <NavTabs value={tab} onChange={setTab} layout="side" />
         </aside>
 
         <main className="workspace">
@@ -105,7 +115,6 @@ function App() {
           {tab === 'character' && <CharacterPage novel={novel} />}
           {tab === 'scene' && <ScenePage novel={novel} />}
           {tab === 'technique' && <TechniquePage novel={novel} />}
-          {tab === 'library' && <LibraryPage novel={novel} library={library} />}
         </main>
       </div>
     </div>

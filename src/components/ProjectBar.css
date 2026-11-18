@@ -6,7 +6,8 @@
   padding: 6px 10px;
   border: 1px solid var(--line-strong);
   background: #151515;
-  max-width: 100%;
+  /* 首次提示条会换行到第二排，别让它把顶栏顶宽 */
+  max-width: min(780px, 100%);
 }
 
 .project-bar__label {
@@ -57,4 +58,35 @@
   font-size: calc(11.5px * var(--fs));
   letter-spacing: 0.04em;
   color: var(--text-mute);
+}
+
+/* 第一次启动：自动建了空数据文件时的说明条 */
+.project-bar__fresh {
+  flex: 1 1 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px dashed var(--line-strong);
+  background: #101010;
+  font-size: calc(12px * var(--fs));
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+}
+
+.project-bar__fresh b {
+  color: #ececec;
+  font-weight: 400;
+}
+
+.project-bar__fresh span {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 60ch;
+  overflow-wrap: anywhere;
+}
+
+.project-bar__fresh .btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
 }

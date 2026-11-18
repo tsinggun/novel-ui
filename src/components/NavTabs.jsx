@@ -5,15 +5,13 @@ const BASE_TABS = [
   { id: 'technique', label: '技法卡' },
 ]
 
-const LIBRARY_TAB = { id: 'library', label: '素材库' }
-
-/** showLibrary 只在本地运行（便携版 / 客户端）时为 true，网页版没有这个页 */
-export default function NavTabs({ value, onChange, showLibrary = false, layout = 'top' }) {
-  const tabs = showLibrary ? [...BASE_TABS, LIBRARY_TAB] : BASE_TABS
+/** layout=side 是左侧竖排导航（现在用的），top 是老的横排 */
+export default function NavTabs({ value, onChange, layout = 'top' }) {
+  const tabs = BASE_TABS
 
   return (
     <nav className={`nav nav--${layout}`} aria-label="视图切换">
-      {tabs.map((tab, index) => (
+      {tabs.map((tab) => (
         <button
           key={tab.id}
           type="button"
@@ -21,7 +19,6 @@ export default function NavTabs({ value, onChange, showLibrary = false, layout =
           aria-pressed={value === tab.id}
           onClick={() => onChange(tab.id)}
         >
-          <span className="nav__index">0{index + 1}</span>
           <span className="nav__label">{tab.label}</span>
         </button>
       ))}

@@ -13,6 +13,8 @@ import './ProjectBar.css'
 export default function DataBar({ onLoadData }) {
   const [local, setLocal] = useState(false)
   const [file, setFile] = useState('')
+  const [fresh, setFresh] = useState(false)
+  const [freshHidden, setFreshHidden] = useState(false)
   const [input, setInput] = useState('')
   const [opened, setOpened] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -26,6 +28,7 @@ export default function DataBar({ onLoadData }) {
       if (!alive || !info) return
       setLocal(true)
       setFile(info.path || info.file || '')
+      setFresh(Boolean(info.fresh))
     })()
     return () => {
       alive = false
@@ -54,6 +57,7 @@ export default function DataBar({ onLoadData }) {
       setFile(res.path)
       setInput('')
       setOpened(false)
+      setFresh(false)
       onLoadData?.(res.data, res.path)
     } finally {
       setBusy(false)
@@ -134,6 +138,18 @@ export default function DataBar({ onLoadData }) {
           <p className="project-bar__tip">
             载入后，界面里的改动会自动写回这个文件，写之前备份到同目录的 _novelui-backups，留最近 10 份。
           </p>
+        </div>
+      )}
+
+      {fresh && !freshHidden && (
+        <div className="project-bar__fresh">
+          <span>
+            第一次使用：已经帮你建好空数据文件 <b>{name}</b>（在 {file}），直接写就行；要接着以前的进度，
+            点「载入数据」选你原来那个 json。
+          </span>
+          <button type="button" className="btn btn--ghost btn--sm" onClick={() => setFreshHidden(true)}>
+            知道了
+          </button>
         </div>
       )}
     </div>

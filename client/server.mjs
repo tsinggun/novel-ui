@@ -72,6 +72,40 @@ async function restoreLastFile() {
   }
 }
 
+/** 空数据文件的初始内容（第一次启动用） */
+const emptyData = {
+  characters: [],
+  scenes: [],
+  techniques: [],
+  plots: [],
+  inBuilder: { characters: [], scenes: [] },
+  inContext: { characters: [], scenes: [] },
+  notes: { character: '', scene: '' },
+  characterNotes: {},
+  promptIntro: null,
+  plotFontSize: 14,
+  previousRecap: '',
+}
+
+/** 本次启动是不是刚新建了文件（界面据此提示「第一次使用」） */
+let freshCreated = false
+
+/**
+ * 第一次打开：没有任何数据文件时（没记录 / 记录的文件被删了 / 默认文件不存在），
+ * 直接在文档目录里建一份空 json，让界面立刻可用，而不是留一个「文件不存在」。
+ */
+async function ensureInitialDataFile() {
+  if (existsSync(dataFile)) return
+  await mkdir(dataDir(), { recursive: true })
+  await writeFile(dataFile, `${JSON.stringify(emptyData, null, 2)}\n`, 'utf8')
+  // 用 NOVEL_FILE 指定路径时不写「上次的文件」，免得覆盖用户自己记的那份
+  if (!process.env.NOVEL_FILE) {
+    await writeFile(lastFileRecord, dataFile, 'utf8').catch(() => {})
+  }
+  freshCreated = true
+  console.log(`  第一次启动：已新建空数据文件 ${dataFile}`)
+}
+
 async function readDataFile(file) {
   const text = await readFile(file, 'utf8')
   const parsed = JSON.parse(text)
@@ -393,8 +427,9 @@ if (!existsSync(path.join(distDir, 'index.html'))) {
   process.exit(1)
 }
 
-// 接着上次载入的数据文件；没有记录就用文档里的默认文件
+// 接着上次载入的数据文件；没有记录就用文档里的默认文件；都没有就新建一份空的
 await restoreLastFile()
+await ensureInitialDataFile()
 
 const server = createServer(async (req, res) => {
   lastActiveAt = Date.now()
@@ -410,6 +445,8 @@ const server = createServer(async (req, res) => {
       dir: dataDir(),
       library: libraryFile,
       platform: 'portable',
+      /** true = 这次启动刚新建了空文件（第一次使用） */
+      fresh: freshCreated,
     })
   }
   return serveStatic(req, res, url)

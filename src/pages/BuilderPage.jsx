@@ -55,6 +55,7 @@ export default function BuilderPage({ novel, onNavigate }) {
     characterNotes: data.characterNotes,
     sceneNote: data.notes.scene,
     techniques: data.techniques,
+    inContext: data.inContext,
   })
 
   const handleAddPlot = () => {
@@ -248,20 +249,38 @@ export default function BuilderPage({ novel, onNavigate }) {
           <span className="field__label">已加入的场景</span>
           {sceneItems.length > 0 ? (
             <ul className="chip-list">
-              {sceneItems.map((item) => (
-                <li key={item.id} className="chip">
-                  <span className="chip__name">{item.name}</span>
-                  {item.detail && <span className="chip__detail">{item.detail}</span>}
-                  <button
-                    type="button"
-                    className="chip__remove"
-                    aria-label={`移出 ${item.name}`}
-                    onClick={() => novel.toggleInBuilder('scenes', item.id)}
-                  >
-                    ×
-                  </button>
-                </li>
-              ))}
+              {sceneItems.map((item) => {
+                const isCtx = (data.inContext.scenes || []).includes(item.id)
+                return (
+                  <li key={item.id} className={`chip${isCtx ? ' chip--ctx' : ''}`}>
+                    <span className="chip__name">{item.name}</span>
+                    {item.detail && <span className="chip__detail">{item.detail}</span>}
+                    <button
+                      type="button"
+                      className={`chip__ctx${isCtx ? ' is-on' : ''}`}
+                      aria-pressed={isCtx}
+                      title="勾选后提示词里不再贴这段场景描述，只留名字与备注，省 token"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        novel.toggleInContext('scenes', item.id)
+                      }}
+                    >
+                      {isCtx ? '✓ 已在上下文' : '+ 已在上下文'}
+                    </button>
+                    <button
+                      type="button"
+                      className="chip__remove"
+                      aria-label={`移出 ${item.name}`}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        novel.toggleInBuilder('scenes', item.id)
+                      }}
+                    >
+                      ×
+                    </button>
+                  </li>
+                )
+              })}
             </ul>
           ) : (
             <p className="empty">
@@ -351,7 +370,13 @@ export default function BuilderPage({ novel, onNavigate }) {
                 key={item.id}
                 title={item.name}
                 tag="人物"
-                meta={data.characterNotes[item.id]?.trim() ? '已写备注' : undefined}
+                meta={
+                  (data.inContext.characters || []).includes(item.id)
+                    ? '已在上下文'
+                    : data.characterNotes[item.id]?.trim()
+                      ? '已写备注'
+                      : undefined
+                }
                 className="card--frame card--clickable"
                 onClick={cardClickGuard(() => setOpenCharacterId(item.id))}
                 actions={
@@ -364,6 +389,16 @@ export default function BuilderPage({ novel, onNavigate }) {
                   </button>
                 }
               >
+                <label className="ctx-toggle">
+                  <input
+                    type="checkbox"
+                    checked={(data.inContext.characters || []).includes(item.id)}
+                    onChange={() => novel.toggleInContext('characters', item.id)}
+                  />
+                  <span className="ctx-toggle__text">
+                    已在上下文（提示词不再贴人物背景，只发本章备注，省 token）
+                  </span>
+                </label>
                 <label className="label" htmlFor={`character-note-${item.id}`}>
                   本章备注 · 衣服 / 心情 / 状态
                 </label>
@@ -702,6 +737,8 @@ export default function BuilderPage({ novel, onNavigate }) {
         full={prompt.full}
         customised={data.promptIntro !== null}
         missingTechNotes={prompt.missingTechNotes}
+        inContextCount={prompt.inContextCount}
+        savedChars={prompt.savedChars}
         onNavigate={() => onNavigate('technique')}
         onIntroChange={(value) => novel.setPromptIntro(value)}
         onReset={() => novel.setPromptIntro(null)}

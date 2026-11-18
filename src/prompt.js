@@ -15,7 +15,13 @@ export function buildPrompt({
   characterNotes = {},
   sceneNote = '',
   techniques = [],
+  inContext = { characters: [], scenes: [] },
 }) {
+  // 已在上下文的卡片：不再重复贴描述，只留名字 + 本章备注，省 token
+  const sceneInCtx = new Set(inContext.scenes || [])
+  const charInCtx = new Set(inContext.characters || [])
+
+
   // 情节实际用到的技法（去重，保持首次出现顺序）；用于提示词预览里提示「哪些技法还没写用法说明」
   const usedTechniques = []
   plots.forEach((plot) => {
@@ -37,8 +43,12 @@ export function buildPrompt({
   if (scenes.length > 0) {
     lines.push('【场景卡】')
     scenes.forEach((scene, index) => {
-      lines.push(`${index + 1}. ${scene.name}`)
-      if (scene.detail) lines.push(`   场景描述：${scene.detail}`)
+      if (sceneInCtx.has(scene.id)) {
+        lines.push(`${index + 1}. ${scene.name}（场景设定已在上下文，不再重复）`)
+      } else {
+        lines.push(`${index + 1}. ${scene.name}`)
+        if (scene.detail) lines.push(`   场景描述：${scene.detail}`)
+      }
     })
     lines.push('')
   }
@@ -47,16 +57,24 @@ export function buildPrompt({
   if (sceneNote.trim()) {
     lines.push('【本章基调与备注】')
     lines.push(`   ${sceneNote.trim()}`)
+    lines.push('   （备注优先于上面的场景描述：有冲突时以备注为准。）')
     lines.push('')
   }
 
   if (characters.length > 0) {
     lines.push('【人物卡】')
+    lines.push('   （人物背景与本章备注冲突时，以本章备注为准。）')
     characters.forEach((person, index) => {
-      lines.push(`${index + 1}. ${person.name}`)
-      if (person.detail) lines.push(`   人物背景：${person.detail}`)
-      const note = (characterNotes[person.id] || '').trim()
-      if (note) lines.push(`   本章备注：${note}`)
+      if (charInCtx.has(person.id)) {
+        lines.push(`${index + 1}. ${person.name}（人物设定已在上下文，不再重复）`)
+        const note = (characterNotes[person.id] || '').trim()
+        if (note) lines.push(`   本章备注：${note}`)
+      } else {
+        lines.push(`${index + 1}. ${person.name}`)
+        if (person.detail) lines.push(`   人物背景：${person.detail}`)
+        const note = (characterNotes[person.id] || '').trim()
+        if (note) lines.push(`   本章备注：${note}`)
+      }
     })
     lines.push('')
   }
@@ -102,5 +120,14 @@ export function buildPrompt({
   // 用到了但没写「用法说明」的技法：预览里要提示去补，否则 AI 只看到一个名字
   const missingTechNotes = usedTechniques.filter((tech) => !tech.detail?.trim()).map((tech) => tech.name)
 
-  return { intro, body, full, missingTechNotes }
+  // 因为「已在上下文」而没发出去的描述字数，预览里显示省了多少
+  const savedChars =
+    scenes.reduce((sum, scene) => (sceneInCtx.has(scene.id) ? sum + (scene.detail || '').length : sum), 0) +
+    characters.reduce(
+      (sum, person) => (charInCtx.has(person.id) ? sum + (person.detail || '').length : sum),
+      0,
+    )
+  const inContextCount = (inContext.scenes || []).length + (inContext.characters || []).length
+
+  return { intro, body, full, missingTechNotes, savedChars, inContextCount }
 }

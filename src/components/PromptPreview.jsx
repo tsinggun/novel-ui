@@ -8,6 +8,8 @@ export default function PromptPreview({
   full,
   customised,
   missingTechNotes,
+  inContextCount = 0,
+  savedChars = 0,
   onIntroChange,
   onReset,
   onNavigate,
@@ -62,7 +64,10 @@ export default function PromptPreview({
       >
         <header className="preview__head">
           <h3 className="preview__title">提示词预览</h3>
-          <span className="preview__meta">{full.length} 字</span>
+          <span className="preview__meta">
+            {full.length} 字
+            {inContextCount > 0 && ` · ${inContextCount} 项已在上下文，少发 ${savedChars} 字`}
+          </span>
           <button type="button" className="preview__close" onClick={handleClose} aria-label="关闭预览">
             ×
           </button>

@@ -9,6 +9,8 @@ const emptyData = {
   techniques: [],
   plots: [],
   inBuilder: { characters: [], scenes: [] },
+  /** 已在上下文里的人/景：提示词里只留名字和备注，不再贴卡片描述，省 token */
+  inContext: { characters: [], scenes: [] },
   notes: { character: '', scene: '' },
   /** 构造器里每个人物独立的本章备注（衣服、心情、状态……），按人物 id 存 */
   characterNotes: {},
@@ -31,6 +33,7 @@ const normalize = (raw) => {
   const base = {
     ...emptyData,
     inBuilder: { ...emptyData.inBuilder },
+    inContext: { ...emptyData.inContext },
     notes: { ...emptyData.notes },
   }
   if (!raw || typeof raw !== 'object') return base
@@ -45,6 +48,7 @@ const normalize = (raw) => {
     })),
     plots: Array.isArray(raw.plots) ? raw.plots : [],
     inBuilder: { ...base.inBuilder, ...(raw.inBuilder || {}) },
+    inContext: { ...base.inContext, ...(raw.inContext || {}) },
     notes: { ...base.notes, ...(raw.notes || {}) },
     characterNotes: { ...(raw.characterNotes || {}) },
     promptIntro: typeof raw.promptIntro === 'string' ? raw.promptIntro : null,
@@ -194,6 +198,10 @@ export function useNovelData() {
           ...prev.inBuilder,
           [kind]: (prev.inBuilder[kind] || []).filter((itemId) => itemId !== id),
         },
+        inContext: {
+          ...prev.inContext,
+          [kind]: (prev.inContext[kind] || []).filter((itemId) => itemId !== id),
+        },
       }
 
       if (kind === 'characters' && id in prev.characterNotes) {
@@ -217,10 +225,33 @@ export function useNovelData() {
     setData((prev) => {
       const list = prev.inBuilder[kind]
       const has = list.includes(id)
+      const nextList = has ? list.filter((itemId) => itemId !== id) : [...list, id]
       return {
         ...prev,
         inBuilder: {
           ...prev.inBuilder,
+          [kind]: nextList,
+        },
+        // 移出构建器时，顺手取消「已在上下文」标记
+        inContext: has
+          ? prev.inContext
+          : {
+              ...prev.inContext,
+              [kind]: (prev.inContext[kind] || []).filter((itemId) => itemId !== id),
+            },
+      }
+    })
+  }, [])
+
+  /** 勾选「已在上下文」：提示词不再贴这张卡的描述，只留名字与备注 */
+  const toggleInContext = useCallback((kind, id) => {
+    setData((prev) => {
+      const list = prev.inContext[kind] || []
+      const has = list.includes(id)
+      return {
+        ...prev,
+        inContext: {
+          ...prev.inContext,
           [kind]: has ? list.filter((itemId) => itemId !== id) : [...list, id],
         },
       }
@@ -300,6 +331,7 @@ export function useNovelData() {
       ...prev,
       plots: [],
       inBuilder: { characters: [], scenes: [] },
+      inContext: { characters: [], scenes: [] },
       notes: { character: '', scene: '' },
       characterNotes: {},
     }))
@@ -345,6 +377,7 @@ export function useNovelData() {
     saveTechnique,
     removeEntity,
     toggleInBuilder,
+    toggleInContext,
     addPlot,
     removePlot,
     updatePlot,

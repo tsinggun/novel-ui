@@ -670,6 +670,61 @@
   white-space: nowrap;
 }
 
+/* 「已在上下文」标记：勾上后提示词不再发这张卡的描述 */
+.chip__ctx {
+  appearance: none;
+  flex: none;
+  padding: 2px 7px;
+  border: 1px dashed var(--line-strong);
+  background: none;
+  color: var(--text-mute);
+  font-size: calc(10.5px * var(--fs));
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.chip__ctx:hover {
+  border-color: #cfcfcf;
+  color: var(--text);
+}
+
+.chip__ctx.is-on {
+  border-style: solid;
+  border-color: #9fb79f;
+  color: #cfdccf;
+  background: #182018;
+}
+
+.chip--ctx {
+  border-left: 2px solid #9fb79f;
+}
+
+.ctx-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 7px 9px;
+  border: 1px dashed var(--line-strong);
+  cursor: pointer;
+}
+
+.ctx-toggle input {
+  margin: 3px 0 0;
+  accent-color: #a9b8a9;
+}
+
+.ctx-toggle__text {
+  font-size: calc(11px * var(--fs));
+  line-height: 1.6;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+}
+
+.ctx-toggle:hover .ctx-toggle__text {
+  color: var(--text);
+}
+
 .chip__remove,
 .plot__remove {
   appearance: none;

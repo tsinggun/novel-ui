@@ -90,6 +90,14 @@
   background: #161616;
 }
 
+.card-search__plain {
+  flex: 1;
+  min-width: 160px;
+  max-width: 360px;
+  padding: 6px 9px;
+  font-size: calc(12px * var(--fs));
+}
+
 .search-chip {
   display: inline-flex;
   align-items: center;

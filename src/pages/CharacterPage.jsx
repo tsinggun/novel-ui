@@ -39,6 +39,7 @@ export default function CharacterPage({ novel }) {
 
       {data.characters.length > 0 && (
         <CardSearch
+          simple
           terms={terms}
           onTermsChange={setTerms}
           placeholder="搜索人物姓名"

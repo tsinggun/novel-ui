@@ -22,9 +22,10 @@ export function appendTerms(prev, raw) {
 
 /** 若干文本字段里，每个条件词都要至少命中一个字段 */
 export function matchEveryTerm(terms, fields) {
-  if (terms.length === 0) return true
+  const active = terms.map((term) => term.trim()).filter(Boolean)
+  if (active.length === 0) return true
   const haystack = fields
     .filter((field) => typeof field === 'string' && field)
     .map((field) => field.toLowerCase())
-  return terms.every((term) => haystack.some((text) => text.includes(term.toLowerCase())))
+  return active.every((term) => haystack.some((text) => text.includes(term.toLowerCase())))
 }

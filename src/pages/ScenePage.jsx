@@ -39,6 +39,7 @@ export default function ScenePage({ novel }) {
 
       {data.scenes.length > 0 && (
         <CardSearch
+          simple
           terms={terms}
           onTermsChange={setTerms}
           placeholder="搜索场景名称"

@@ -1,5 +1,6 @@
 .project-bar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   padding: 6px 10px;
@@ -18,7 +19,7 @@
   font-size: calc(12.5px * var(--fs));
   letter-spacing: 0.06em;
   color: #ececec;
-  max-width: 46ch;
+  max-width: 32ch;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -27,4 +28,33 @@
 .project-bar__error {
   font-size: calc(11.5px * var(--fs));
   color: #ff8f8f;
+}
+
+.project-bar__panel {
+  flex: 1 1 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--line);
+}
+
+.project-bar__panel-label {
+  font-size: calc(12px * var(--fs));
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+}
+
+.project-bar__input {
+  flex: 1 1 360px;
+  min-width: 240px;
+}
+
+.project-bar__tip {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: calc(11.5px * var(--fs));
+  letter-spacing: 0.04em;
+  color: var(--text-mute);
 }

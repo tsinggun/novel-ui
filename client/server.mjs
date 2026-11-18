@@ -170,12 +170,28 @@ async function handleState(req, res) {
 function pickFolderByDialog() {
   const script = `
 Add-Type -AssemblyName System.Windows.Forms | Out-Null
+Add-Type -AssemblyName System.Drawing | Out-Null
+# 用一个置顶的隐形父窗口做 owner，否则对话框会跑到应用窗口后面去
+$owner = New-Object System.Windows.Forms.Form
+$owner.Text = '打开项目'
+$owner.TopMost = $true
+$owner.ShowInTaskbar = $false
+$owner.FormBorderStyle = 'None'
+$owner.StartPosition = 'CenterScreen'
+$owner.Width = 1
+$owner.Height = 1
+$owner.Opacity = 0
+$owner.Show()
+$owner.Activate()
+
 $dialog = New-Object System.Windows.Forms.FolderBrowserDialog
 $dialog.Description = '选择一个项目文件夹（人物卡、场景卡、技法卡都保存在里面）'
 $dialog.ShowNewFolderButton = $true
-if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
+
+if ($dialog.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK) {
   Write-Output $dialog.SelectedPath
 }
+$owner.Close()
 `.trim()
 
   return new Promise((resolve) => {
@@ -193,8 +209,12 @@ if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
     })
     child.on('error', () => resolve(null))
     child.on('close', () => {
-      const picked = out.trim().split(/\r?\n/).pop() || ''
-      resolve(picked || null)
+      const lines = out
+        .trim()
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+      resolve(lines.length ? lines[lines.length - 1] : null)
     })
   })
 }
@@ -379,26 +399,48 @@ const BROWSER_CANDIDATES = [
 // 固定端口，这样窗口刷新/重开都还是同一个地址；被占用时退回随机端口
 const PREFERRED_PORT = Number(process.env.NOVEL_PORT || 23871)
 
-server.on('error', (error) => {
-  if (error.code === 'EADDRINUSE') {
-    console.log(`  端口 ${PREFERRED_PORT} 被占用，改用随机端口`)
-    server.listen(0, '127.0.0.1', onListening)
-  } else {
-    throw error
+/** 已经有一个本程序的服务在这个端口上跑？ */
+async function hasRunningInstance() {
+  try {
+    const res = await fetch(`http://127.0.0.1:${PREFERRED_PORT}/plot-api/info`, {
+      signal: AbortSignal.timeout(2500),
+    })
+    if (!res.ok) return false
+    const json = await res.json()
+    return Boolean(json && json.platform === 'portable')
+  } catch {
+    return false
   }
-})
+}
 
-server.listen(PREFERRED_PORT, '127.0.0.1', onListening)
+/** 桌面上是否已经开着「小说构建器」窗口 */
+function hasAppWindow() {
+  const script = `
+$count = (Get-Process chrome,msedge -ErrorAction SilentlyContinue |
+  Where-Object { $_.MainWindowTitle -eq '小说构建器' } |
+  Measure-Object).Count
+Write-Output $count
+`.trim()
 
-async function onListening() {
-  const port = server.address().port
-  const targetUrl = `http://127.0.0.1:${port}/`
-  console.log(`小说构建器 · 便携版`)
-  console.log(`  项目文件夹：${projectDir}`)
-  console.log(`  本地地址：${targetUrl}`)
+  return new Promise((resolve) => {
+    const powershell = process.env.SystemRoot
+      ? path.join(process.env.SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
+      : 'powershell.exe'
+    const child = spawn(powershell, ['-NoProfile', '-Command', script], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
+    })
+    let out = ''
+    child.stdout.on('data', (chunk) => {
+      out += chunk.toString('utf8')
+    })
+    child.on('error', () => resolve(false))
+    child.on('close', () => resolve(Number(out.trim()) > 0))
+  })
+}
 
-  if (process.argv.includes('--no-window')) return
-
+/** 用浏览器 --app 开一个没有地址栏的窗口 */
+async function openAppWindow(targetUrl) {
   const browser = BROWSER_CANDIDATES.find((item) => item && existsSync(item))
   if (!browser) {
     console.log('  没找到 Chrome / Edge，用系统默认浏览器打开')
@@ -423,7 +465,7 @@ async function onListening() {
       '--no-first-run',
       '--no-default-browser-check',
       '--disable-features=msEdgeSidebarV2,msEdgeTabPreloading',
-      // 关掉后台自更新/同步，避免弹「无法更新 Microsoft Edge」这类窗口
+      // 关掉后台自更新/同步，避免弹「无法更新」这类窗口
       '--disable-component-update',
       '--disable-background-networking',
       '--disable-sync',
@@ -442,4 +484,45 @@ async function onListening() {
     console.log(`  浏览器启动失败：${error.message}，改用默认浏览器`)
     spawn('cmd', ['/c', 'start', '', targetUrl], { detached: true, stdio: 'ignore' }).unref()
   })
+}
+
+/* 单实例：已经有一份在跑就不要再起服务、更不要再开第二个窗口 */
+const running = await hasRunningInstance()
+if (running && !process.argv.includes('--no-window')) {
+  const alreadyOpen = await hasAppWindow()
+  if (alreadyOpen) {
+    console.log('  已经有一个「小说构建器」窗口开着，不再重复启动。')
+    console.log(`  地址：http://127.0.0.1:${PREFERRED_PORT}/`)
+    process.exit(0)
+  }
+  console.log('  检测到后台服务已在运行，直接把窗口接上去。')
+  await openAppWindow(`http://127.0.0.1:${PREFERRED_PORT}/`)
+  process.exit(0)
+}
+if (running) {
+  console.log(`  已有实例在 ${PREFERRED_PORT} 端口运行，本次不再启动。`)
+  process.exit(0)
+}
+
+server.on('error', (error) => {
+  if (error.code === 'EADDRINUSE') {
+    console.log(`  端口 ${PREFERRED_PORT} 被占用，改用随机端口`)
+    server.listen(0, '127.0.0.1', onListening)
+  } else {
+    throw error
+  }
+})
+
+server.listen(PREFERRED_PORT, '127.0.0.1', onListening)
+
+async function onListening() {
+  const port = server.address().port
+  const targetUrl = `http://127.0.0.1:${port}/`
+  console.log(`小说构建器 · 便携版`)
+  console.log(`  项目文件夹：${projectDir}`)
+  console.log(`  本地地址：${targetUrl}`)
+
+  if (process.argv.includes('--no-window')) return
+
+  await openAppWindow(targetUrl)
 }

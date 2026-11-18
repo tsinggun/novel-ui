@@ -9,6 +9,8 @@ export default function TechniquePage({ novel }) {
   const { data } = novel
   const [draft, setDraft] = useState(null)
   const [activeTags, setActiveTags] = useState([])
+  /** 排除标签：带这些标签的技法卡全部不显示（视图过滤，不动数据） */
+  const [blockedTags, setBlockedTags] = useState([])
   const [terms, setTerms] = useState([])
   const [tagQuery, setTagQuery] = useState('')
   const [tagsExpanded, setTagsExpanded] = useState(false)
@@ -46,8 +48,11 @@ export default function TechniquePage({ novel }) {
   const matchesFilter = (item) =>
     activeTags.length === 0 || activeTags.every((tag) => (item.tags || []).includes(tag))
 
+  // 排除标签优先：带任一个被排除标签的卡直接不看
+  const blockedFilter = (item) => (item.tags || []).every((tag) => !blockedTags.includes(tag))
+
   // 卡片检索：标题（技法名）+ 标签都能命中；多个条件全都要满足，和标签筛选也是「同时满足」
-  const tagFiltered = data.techniques.filter((item) => matchesFilter(item))
+  const tagFiltered = data.techniques.filter((item) => blockedFilter(item) && matchesFilter(item))
   const visibleTechniques = tagFiltered.filter((item) =>
     matchEveryTerm(terms, [item.name, ...(item.tags || [])]),
   )
@@ -127,14 +132,26 @@ export default function TechniquePage({ novel }) {
               </button>
             </li>
             {shownTagStats.map(({ tag, count }) => (
-              <li key={tag}>
+              <li key={tag} className="tag-unit">
                 <button
                   type="button"
-                  className={`tag-filter__chip${activeTags.includes(tag) ? ' is-active' : ''}`}
+                  className={`tag-filter__chip${activeTags.includes(tag) ? ' is-active' : ''}${
+                    blockedTags.includes(tag) ? ' is-excluded' : ''
+                  }`}
                   aria-pressed={activeTags.includes(tag)}
                   onClick={() => toggleTag(tag)}
+                  title={`只显示带「${tag}」的技法卡`}
                 >
                   {tag} {count}
+                </button>
+                <button
+                  type="button"
+                  className="tag-filter__exclude"
+                  aria-label={`排除所有带「${tag}」的技法卡`}
+                  title={`排除：带「${tag}」的技法卡全部不显示`}
+                  onClick={() => setBlockedTags((prev) => [...prev, tag])}
+                >
+                  ⊘
                 </button>
               </li>
             ))}
@@ -157,6 +174,28 @@ export default function TechniquePage({ novel }) {
               </li>
             )}
           </ul>
+
+          {blockedTags.length > 0 && (
+            <div className="tag-filter__blocked">
+              <span className="label">已排除</span>
+              {blockedTags.map((tag) => (
+                <span key={tag} className="tag-chip tag-chip--blocked">
+                  ⊘ {tag}
+                  <button
+                    type="button"
+                    className="tag-chip__remove"
+                    aria-label={`恢复标签 ${tag}`}
+                    onClick={() => setBlockedTags((prev) => prev.filter((item) => item !== tag))}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+              <button type="button" className="btn btn--link" onClick={() => setBlockedTags([])}>
+                全部恢复
+              </button>
+            </div>
+          )}
 
           <div className="tag-filter__side">
             {queryMatched && queryMatched.length === 0 && (

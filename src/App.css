@@ -1683,6 +1683,27 @@
   list-style: none;
 }
 
+/* 技法卡页：标签和它的 ⊘ 排在同一格里 */
+.tag-filter__list .tag-unit {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.tag-filter__list .tag-filter__exclude {
+  height: 26px;
+}
+
+.tag-filter__blocked {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px dashed #8a4b4b;
+  background: #141010;
+}
+
 .tag-filter__chip {
   appearance: none;
   padding: 4px 10px;
@@ -1705,6 +1726,12 @@
   border-color: #d8d8d8;
   background: #262626;
   color: #ffffff;
+}
+
+/* 已被排除的标签：灰掉划掉，一眼看出它现在不参与筛选 */
+.tag-filter__chip.is-excluded {
+  opacity: 0.45;
+  text-decoration: line-through;
 }
 
 .tag-filter__hint {

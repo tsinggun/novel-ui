@@ -25,7 +25,7 @@ namespace NovelBuilderLauncher
     /// </summary>
     internal static class Program
     {
-        private const string AppVersion = "0.2.8";
+        private const string AppVersion = "0.2.9";
         private const string PayloadResource = "payload.zip";
 
         [DllImport("user32.dll", CharSet = CharSet.Unicode)]

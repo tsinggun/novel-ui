@@ -19,10 +19,28 @@ export default function EntityCreateModal({
   onChange,
   onSave,
   onCancel,
+  onPasteImport,
 }) {
   const [tagInput, setTagInput] = useState('')
 
   if (!open || !draft) return null
+
+  // 直接粘一整段卡片 JSON（对象或数组）进输入框：拦下来转成批量导入，不当文本塞进去
+  const catchJsonPaste = (event) => {
+    if (!onPasteImport) return
+    const text = event.clipboardData?.getData('text') || ''
+    const trimmed = text.trim()
+    if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return
+    try {
+      const parsed = JSON.parse(trimmed)
+      const items = Array.isArray(parsed) ? parsed : [parsed]
+      if (items.length === 0 || typeof items[0] !== 'object' || items[0] === null) return
+      event.preventDefault()
+      onPasteImport(items)
+    } catch {
+      /* 不是 JSON 就按普通文本粘进去 */
+    }
+  }
 
   const tagList = Array.isArray(tags) ? tags : null
   const canSave = draft.name.trim().length > 0
@@ -80,6 +98,7 @@ export default function EntityCreateModal({
           placeholder={namePlaceholder}
           autoFocus
           onChange={(event) => patch('name', event.target.value)}
+          onPaste={catchJsonPaste}
           onKeyDown={(event) => {
             if (event.key === 'Enter') {
               event.preventDefault()
@@ -130,6 +149,7 @@ export default function EntityCreateModal({
           className="input input--area detail__editor detail__editor--tall"
           value={draft.detail}
           placeholder={detailPlaceholder}
+          onPaste={catchJsonPaste}
           onChange={(event) => patch('detail', event.target.value)}
         />
       </div>

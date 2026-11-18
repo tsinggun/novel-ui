@@ -3,12 +3,15 @@ import Card from '../components/Card'
 import CardSearch from '../components/CardSearch'
 import EntityCard from '../components/EntityCard'
 import EntityCreateModal from '../components/EntityCreateModal'
+import PasteImportModal from '../components/PasteImportModal'
 import { matchEveryTerm } from '../searchTerms'
 
 export default function CharacterPage({ novel }) {
   const { data } = novel
   const [draft, setDraft] = useState(null)
   const [terms, setTerms] = useState([])
+  const [pasteOpen, setPasteOpen] = useState(false)
+  const [pasteNotice, setPasteNotice] = useState('')
 
   const startCreate = () => setDraft({ name: '', detail: '' })
   const cancel = () => setDraft(null)
@@ -32,9 +35,15 @@ export default function CharacterPage({ novel }) {
             写下姓名与人物故事，保存后可一键加入构建器。点击已有卡片会放大，直接在里面改。
           </p>
         </div>
-        <button type="button" className="btn btn--solid" onClick={startCreate}>
-          添加人物
-        </button>
+        <div className="page__actions">
+          {pasteNotice && <span className="tool-hint">{pasteNotice}</span>}
+          <button type="button" className="btn" onClick={() => setPasteOpen(true)}>
+            粘贴导入
+          </button>
+          <button type="button" className="btn btn--solid" onClick={startCreate}>
+            添加人物
+          </button>
+        </div>
       </header>
 
       {data.characters.length > 0 && (
@@ -101,6 +110,25 @@ export default function CharacterPage({ novel }) {
         onChange={setDraft}
         onSave={handleSave}
         onCancel={cancel}
+        onPasteImport={(items) => {
+          const result = novel.importEntities('characters', items)
+          setDraft(null)
+          setPasteNotice(`已粘贴导入 ${result.added} 张人物卡${result.skipped ? `，跳过重名 ${result.skipped} 张` : ''}`)
+        }}
+      />
+
+      <PasteImportModal
+        open={pasteOpen}
+        title="粘贴导入人物卡"
+        hint="一段对象或对象数组都行；追加进卡库，重名跳过。"
+        example={'{\n  "name": "林见月",\n  "detail": "出身、性格、执念……"\n}'}
+        onImport={(items) => {
+          const result = novel.importEntities('characters', items)
+          setPasteNotice(`已粘贴导入 ${result.added} 张人物卡${result.skipped ? `，跳过重名 ${result.skipped} 张` : ''}`)
+          if (result.added > 0) setPasteOpen(false)
+          return result
+        }}
+        onClose={() => setPasteOpen(false)}
       />
     </section>
   )

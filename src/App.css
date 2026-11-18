@@ -440,6 +440,18 @@
   border-bottom: 1px dashed var(--line);
 }
 
+/* 页头右侧的动作区：提示 + 若干按钮（等高对齐） */
+.page__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.page__actions .btn {
+  height: 30px;
+}
+
 .page__title {
   margin: 0;
   font-size: calc(19px * var(--fs));

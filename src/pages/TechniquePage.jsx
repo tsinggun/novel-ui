@@ -3,6 +3,7 @@ import Card from '../components/Card'
 import CardSearch from '../components/CardSearch'
 import EntityCard from '../components/EntityCard'
 import EntityCreateModal from '../components/EntityCreateModal'
+import PasteImportModal from '../components/PasteImportModal'
 import { matchEveryTerm } from '../searchTerms'
 
 export default function TechniquePage({ novel }) {
@@ -14,6 +15,8 @@ export default function TechniquePage({ novel }) {
   const [terms, setTerms] = useState([])
   const [tagQuery, setTagQuery] = useState('')
   const [tagsExpanded, setTagsExpanded] = useState(false)
+  const [pasteOpen, setPasteOpen] = useState(false)
+  const [pasteNotice, setPasteNotice] = useState('')
 
   // 标签一多就折叠，先只铺这么多个；已选的永远优先显示
   const TAG_COLLAPSE_AT = 12
@@ -85,9 +88,15 @@ export default function TechniquePage({ novel }) {
             写下写作技法（节奏、视角、修辞、结构……），保存后在情节卡里勾选使用。点击已有卡片会放大，直接在里面改。
           </p>
         </div>
-        <button type="button" className="btn btn--solid" onClick={startCreate}>
-          添加技法
-        </button>
+        <div className="page__actions">
+          {pasteNotice && <span className="tool-hint">{pasteNotice}</span>}
+          <button type="button" className="btn" onClick={() => setPasteOpen(true)}>
+            粘贴导入
+          </button>
+          <button type="button" className="btn btn--solid" onClick={startCreate}>
+            添加技法
+          </button>
+        </div>
       </header>
 
       {!draft && data.techniques.length === 0 && (
@@ -273,6 +282,25 @@ export default function TechniquePage({ novel }) {
         onChange={setDraft}
         onSave={handleSave}
         onCancel={cancel}
+        onPasteImport={(items) => {
+          const result = novel.importEntities('techniques', items)
+          setDraft(null)
+          setPasteNotice(`已粘贴导入 ${result.added} 张技法卡${result.skipped ? `，跳过重名 ${result.skipped} 张` : ''}`)
+        }}
+      />
+
+      <PasteImportModal
+        open={pasteOpen}
+        title="粘贴导入技法卡"
+        hint="一段对象或对象数组都行；追加进卡库，重名跳过。"
+        example={'{\n  "name": "慢镜头",\n  "detail": "把动作拆成几拍写",\n  "tags": ["节奏", "画面"]\n}'}
+        onImport={(items) => {
+          const result = novel.importEntities('techniques', items)
+          setPasteNotice(`已粘贴导入 ${result.added} 张技法卡${result.skipped ? `，跳过重名 ${result.skipped} 张` : ''}`)
+          if (result.added > 0) setPasteOpen(false)
+          return result
+        }}
+        onClose={() => setPasteOpen(false)}
       />
     </section>
   )

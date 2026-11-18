@@ -356,6 +356,54 @@ export function useNovelData() {
     setData(normalize(raw))
   }, [])
 
+  /**
+   * 批量粘贴导入单张/多张卡片（追加，不覆盖已有卡片）。
+   * items 可以是一段 JSON 对象或数组里的元素，字段按 name / detail / tags 取。
+   * 重名的跳过，避免粘两遍出现两张一样的卡。
+   * 返回 { added, skipped } 给页面提示用。
+   */
+  const importEntities = useCallback((kind, items) => {
+    const key = kind === 'characters' ? 'characters' : kind === 'scenes' ? 'scenes' : 'techniques'
+    const incoming = (Array.isArray(items) ? items : [items])
+      .map((raw) => {
+        if (typeof raw === 'string') return { name: raw.trim(), detail: '', tags: [] }
+        if (!raw || typeof raw !== 'object') return null
+        const name = String(raw.name ?? raw.title ?? raw['名称'] ?? '').trim()
+        if (!name) return null
+        const detail = String(raw.detail ?? raw.description ?? raw['详情'] ?? '')
+        const tags = Array.isArray(raw.tags)
+          ? raw.tags.map((tag) => String(tag).trim()).filter(Boolean)
+          : []
+        return { name, detail, tags: [...new Set(tags)] }
+      })
+      .filter(Boolean)
+
+    let added = 0
+    let skipped = 0
+    if (incoming.length === 0) return { added, skipped }
+
+    setData((prev) => {
+      const list = [...prev[key]]
+      incoming.forEach((item) => {
+        if (list.some((entry) => entry.name === item.name)) {
+          skipped += 1
+          return
+        }
+        list.push({
+          id: uid(),
+          name: item.name,
+          detail: item.detail.trim(),
+          ...(key === 'techniques' ? { tags: item.tags } : {}),
+          createdAt: Date.now(),
+        })
+        added += 1
+      })
+      return { ...prev, [key]: list }
+    })
+
+    return { added, skipped }
+  }, [])
+
   /** 清空构造器：只清这一章的组装，卡片库（人物/场景/技法）保留 */
   const clearBuilder = useCallback(() => {
     setData((prev) => ({
@@ -417,6 +465,7 @@ export function useNovelData() {
     updatePlot,
     movePlot,
     importData,
+    importEntities,
     clearBuilder,
     setNote,
     setCharacterNote,

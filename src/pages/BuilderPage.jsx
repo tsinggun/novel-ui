@@ -577,8 +577,17 @@ export default function BuilderPage({ novel, onNavigate }) {
                   {techs.length > 0 && (
                     <div className="plot__techs">
                       {techs.map((tech) => (
-                        <span key={tech.id} className="plot__tech">
-                          {tech.name}
+                        <span
+                          key={tech.id}
+                          className={`plot__tech${tech.detail?.trim() ? '' : ' plot__tech--empty'}`}
+                          title={tech.detail?.trim() || '这张技法卡还没写用法说明'}
+                        >
+                          <span className="plot__tech-name">{tech.name}</span>
+                          {tech.detail?.trim() ? (
+                            <span className="plot__tech-note">{tech.detail.trim()}</span>
+                          ) : (
+                            <span className="plot__tech-note">未写用法说明</span>
+                          )}
                         </span>
                       ))}
                     </div>

@@ -26,6 +26,8 @@ export default function BuilderPage({ novel, onNavigate, previewOpen = false, on
   const [notice, setNotice] = useState('')
   const [sceneOpen, setSceneOpen] = useState(false)
   const [openCharacterId, setOpenCharacterId] = useState(null)
+  /** 情节列表按标签排除：带上这些标签的情节一律不显示（只是过滤视图，不删数据） */
+  const [hiddenPlotTags, setHiddenPlotTags] = useState([])
   const fileInputRef = useRef(null)
 
   // 卡片主体可点开弹窗，但输入框和按钮上的点击保持原样
@@ -44,6 +46,18 @@ export default function BuilderPage({ novel, onNavigate, previewOpen = false, on
 
   const intro = data.promptIntro ?? DEFAULT_PROMPT_INTRO
   const fontSize = data.plotFontSize ?? 14
+
+  // 每条情节自带它所用技法的标签（去重）；按标签排除时用来判断这条要不要显示
+  const plotTags = (plot) =>
+    [...new Set(
+      (plot.techniqueIds || [])
+        .map((id) => data.techniques.find((item) => item.id === id))
+        .filter(Boolean)
+        .flatMap((tech) => tech.tags || []),
+    )]
+
+  const plotHidden = (plot) => plotTags(plot).some((tag) => hiddenPlotTags.includes(tag))
+  const visiblePlotCount = data.plots.filter((plot) => !plotHidden(plot)).length
 
   const prompt = buildPrompt({
     intro,
@@ -484,12 +498,43 @@ export default function BuilderPage({ novel, onNavigate, previewOpen = false, on
             A＋
           </button>
         </div>
+        {data.plots.length > 0 && hiddenPlotTags.length > 0 && (
+          <div className="plot-filterbar">
+            <span className="plot-filterbar__label">已排除标签</span>
+            {hiddenPlotTags.map((tag) => (
+              <span key={tag} className="tag-chip tag-chip--blocked">
+                ⊘ {tag}
+                <button
+                  type="button"
+                  className="tag-chip__remove"
+                  aria-label={`恢复标签 ${tag}`}
+                  onClick={() => setHiddenPlotTags((prev) => prev.filter((item) => item !== tag))}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+            <span className="plot-filterbar__count">
+              显示 {visiblePlotCount} / {data.plots.length} 条
+            </span>
+            <button
+              type="button"
+              className="btn btn--link"
+              onClick={() => setHiddenPlotTags([])}
+            >
+              全部恢复
+            </button>
+          </div>
+        )}
+
         {data.plots.length > 0 && (
           <ul className="plot-list">
             {data.plots.map((plot, index) => {
               const techs = (plot.techniqueIds || [])
                 .map((id) => data.techniques.find((item) => item.id === id))
                 .filter(Boolean)
+              const tags = plotTags(plot)
+              if (plotHidden(plot)) return null
 
               if (editingPlot?.id === plot.id) {
                 return (
@@ -614,6 +659,25 @@ export default function BuilderPage({ novel, onNavigate, previewOpen = false, on
                           ) : (
                             <span className="plot__tech-note">未写用法说明</span>
                           )}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {tags.length > 0 && (
+                    <div className="plot__tags">
+                      {tags.map((tag) => (
+                        <span key={tag} className="plot__tag">
+                          <span className="plot__tag-name">{tag}</span>
+                          <button
+                            type="button"
+                            className="plot__tag-x"
+                            aria-label={`排除所有带「${tag}」的情节`}
+                            title={`点一下：把所有用到「${tag}」的情节先收起来（不删数据）`}
+                            onClick={() => setHiddenPlotTags((prev) => [...prev, tag])}
+                          >
+                            ⊘
+                          </button>
                         </span>
                       ))}
                     </div>

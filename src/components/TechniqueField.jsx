@@ -83,6 +83,8 @@ export default function TechniqueField({
 function TechniqueSelectModal({ techniques, selectedIds, onChange, onClose }) {
   const [query, setQuery] = useState('')
   const [activeTags, setActiveTags] = useState([])
+  /** 排除标签：凡带这些标签的技法一律不显示（和「必须同时包含」是两回事） */
+  const [blockedTags, setBlockedTags] = useState([])
   const [tagsExpanded, setTagsExpanded] = useState(false)
   const keyword = query.trim().toLowerCase()
   /** 标签区默认只露这么多，其余折进「+N 更多」 */
@@ -99,33 +101,35 @@ function TechniqueSelectModal({ techniques, selectedIds, onChange, onClose }) {
     return () => window.removeEventListener('keydown', handleKey, true)
   }, [onClose])
 
-  // 只列「点下去一定还有结果」的标签：交集模式下的候选池
+  // 只列「点下去一定还有结果」的标签：交集模式下的候选池（已被排除的标签不再出现）
   const tagPool = useMemo(() => {
     const map = new Map()
     techniques.forEach((tech) => {
       const tags = tech.tags || []
+      if (tags.some((tag) => blockedTags.includes(tag))) return
       if (!activeTags.every((tag) => tags.includes(tag))) return
       tags.forEach((tag) => {
-        if (activeTags.includes(tag)) return
+        if (activeTags.includes(tag) || blockedTags.includes(tag)) return
         map.set(tag, (map.get(tag) || 0) + 1)
       })
     })
     return [...map.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-  }, [techniques, activeTags])
+  }, [techniques, activeTags, blockedTags])
 
   const shownTags = tagsExpanded ? tagPool : tagPool.slice(0, TAG_LIMIT)
 
   const filtered = useMemo(
     () =>
       techniques.filter((tech) => {
-        const hitTag = activeTags.every((tag) => (tech.tags || []).includes(tag))
-        if (!hitTag) return false
+        const tags = tech.tags || []
+        if (tags.some((tag) => blockedTags.includes(tag))) return false
+        if (!activeTags.every((tag) => tags.includes(tag))) return false
         if (!keyword) return true
         if (tech.name.toLowerCase().includes(keyword)) return true
         if ((tech.detail || '').toLowerCase().includes(keyword)) return true
-        return (tech.tags || []).some((tag) => tag.toLowerCase().includes(keyword))
+        return tags.some((tag) => tag.toLowerCase().includes(keyword))
       }),
-    [techniques, activeTags, keyword],
+    [techniques, activeTags, blockedTags, keyword],
   )
 
   const toggle = (id) =>
@@ -196,6 +200,32 @@ function TechniqueSelectModal({ techniques, selectedIds, onChange, onClose }) {
               </div>
             )}
 
+            {blockedTags.length > 0 && (
+              <div className="tech-select__active tech-select__active--blocked">
+                <span className="tech-select__active-label">已排除标签</span>
+                {blockedTags.map((tag) => (
+                  <span key={tag} className="tag-chip tag-chip--blocked">
+                    ⊘ {tag}
+                    <button
+                      type="button"
+                      className="tag-chip__remove"
+                      aria-label={`恢复标签 ${tag}`}
+                      onClick={() => setBlockedTags((prev) => prev.filter((item) => item !== tag))}
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+                <button
+                  type="button"
+                  className="btn btn--link tech-select__active-clear"
+                  onClick={() => setBlockedTags([])}
+                >
+                  全部恢复
+                </button>
+              </div>
+            )}
+
             {tagPool.length > 0 && (
               <div className={`tech-select__tags${tagsExpanded ? ' is-expanded' : ''}`}>
                 <button
@@ -206,14 +236,25 @@ function TechniqueSelectModal({ techniques, selectedIds, onChange, onClose }) {
                   全部 {techniques.length}
                 </button>
                 {shownTags.map(([tag, count]) => (
-                  <button
-                    key={tag}
-                    type="button"
-                    className="tag-filter__item"
-                    onClick={() => setActiveTags((prev) => [...prev, tag])}
-                  >
-                    {tag} <span className="tag-filter__count">{count}</span>
-                  </button>
+                  <span key={tag} className="tag-unit">
+                    <button
+                      type="button"
+                      className="tag-filter__item"
+                      onClick={() => setActiveTags((prev) => [...prev, tag])}
+                      title={`只留下同时带「${tag}」的技法`}
+                    >
+                      {tag} <span className="tag-filter__count">{count}</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="tag-filter__exclude"
+                      aria-label={`排除所有带「${tag}」的技法`}
+                      title={`排除：带「${tag}」的技法全部不显示`}
+                      onClick={() => setBlockedTags((prev) => [...prev, tag])}
+                    >
+                      ⊘
+                    </button>
+                  </span>
                 ))}
                 {tagPool.length > TAG_LIMIT && (
                   <button

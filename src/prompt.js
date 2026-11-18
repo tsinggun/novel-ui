@@ -1,5 +1,6 @@
-export const DEFAULT_PROMPT_INTRO =
-  '你是一名擅长结合积木要素来写小说的作家，现在根据排列的提示词来生成小说。'
+export const DEFAULT_PROMPT_INTRO = `你是一名擅长结合积木要素来写小说的作家，现在根据排列的提示词来生成小说。
+
+写作方式：请写成连贯的一章正文，按下面的顺序推进，不要逐条罗列或分段复述；不要改变已给出的人设、时间线和场景细节，也不要新增设定；直接输出正文，不要标题、要点、说明、字数统计或总结。`
 
 /**
  * 把构造器里排列好的积木（前情 → 场景 → 人物 → 情节）拼成提示词。
@@ -15,8 +16,6 @@ export function buildPrompt({
   sceneNote = '',
   techniques = [],
 }) {
-  const totalWords = plots.reduce((sum, plot) => sum + (Number(plot.wordCount) || 0), 0)
-
   // 情节实际用到的技法（去重，保持首次出现顺序）
   const usedTechniques = []
   plots.forEach((plot) => {
@@ -26,12 +25,7 @@ export function buildPrompt({
     if (tech && !usedTechniques.some((item) => item.id === tech.id)) usedTechniques.push(tech)
   })
 
-  const lengthText = totalWords > 0 ? `约 ${totalWords} 字的一章` : '连贯的一章'
-
-  const lines = [
-    `写作方式：请写成${lengthText}正文，按下面的顺序推进，不要逐条罗列或分段复述；不要改变已给出的人设、时间线和场景细节，也不要新增设定；直接输出正文，不要标题、要点、说明、字数统计或总结。`,
-    '',
-  ]
+  const lines = []
 
   if (recap.trim()) {
     lines.push('【前情提要】')
@@ -94,7 +88,7 @@ export function buildPrompt({
     })
   }
 
-  const body = lines.join('\n').trimEnd()
+  const body = lines.join('\n').trim()
   const introText = intro.trim()
   const full = `${introText ? `${introText}\n\n` : ''}${body}`.trimEnd() + '\n'
 

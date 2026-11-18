@@ -19,6 +19,9 @@ export default function DataBar({ onLoadData }) {
   const [freshHidden, setFreshHidden] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  /** 作品目录改成在界面里填路径：不弹系统框，免得被主窗口挡住又没法输入 */
+  const [dirOpen, setDirOpen] = useState(false)
+  const [dirPath, setDirPath] = useState('')
 
   useEffect(() => {
     let alive = true
@@ -37,12 +40,12 @@ export default function DataBar({ onLoadData }) {
 
   if (!local) return null
 
-  const load = async (kind) => {
+  const load = async (kind, pathIn) => {
     if (busy) return
     setBusy(true)
     setError('')
     try {
-      const res = await openDataFile(undefined, kind)
+      const res = await openDataFile(pathIn, kind)
       if (res.cancelled) return
       if (!res.ok) {
         setError(res.error || '这个路径读不了')
@@ -58,6 +61,29 @@ export default function DataBar({ onLoadData }) {
   }
 
   const name = file ? file.split(/[\\/]/).filter(Boolean).pop() : '未选择'
+
+  // 默认填「当前 json 同名的文件夹」，一开始就能直接确定
+  const openDirPrompt = () => {
+    const suggestion = file
+      ? mode === 'dir'
+        ? file
+        : file.replace(/\.json$/i, '')
+      : ''
+    setDirPath(suggestion)
+    setError('')
+    setDirOpen(true)
+  }
+
+  const submitDir = (event) => {
+    event?.preventDefault?.()
+    const target = dirPath.trim().replace(/^"|"$/g, '')
+    if (!target) {
+      setError('先填一个文件夹路径')
+      return
+    }
+    setDirOpen(false)
+    load('dir', target)
+  }
 
   return (
     <div className="project-bar">
@@ -79,12 +105,42 @@ export default function DataBar({ onLoadData }) {
       <button
         type="button"
         className="btn btn--sm topbar__btn"
-        onClick={() => load('dir')}
+        onClick={openDirPrompt}
         disabled={busy}
-        title="选一个作品文件夹：里面一卡一文件，只写改过的那张"
+        title="填一个作品文件夹路径：里面一卡一文件，只写改过的那张"
       >
         作品目录…
       </button>
+
+      {dirOpen && (
+        <div className="path-prompt">
+          <form className="path-prompt__box" onSubmit={submitDir}>
+            <span className="path-prompt__title">作品目录</span>
+            <p className="path-prompt__tip">
+              粘贴文件夹路径，回车打开。没有这个文件夹就新建，里面是空的就自动建骨架
+              （characters / scenes / techniques / plots）。
+            </p>
+            <input
+              className="input path-prompt__input"
+              type="text"
+              spellCheck={false}
+              autoFocus
+              placeholder="D:\写作\我的小说"
+              value={dirPath}
+              onChange={(event) => setDirPath(event.target.value)}
+            />
+            {error && <p className="path-prompt__error">{error}</p>}
+            <div className="path-prompt__actions">
+              <button type="button" className="btn btn--sm btn--ghost" onClick={() => setDirOpen(false)}>
+                取消
+              </button>
+              <button type="submit" className="btn btn--sm btn--solid">
+                打开
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {error && <span className="project-bar__error">{error}</span>}
 

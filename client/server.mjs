@@ -695,6 +695,10 @@ $owner.Close()
     ? path.join(process.env.SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe')
     : 'powershell.exe'
 
+  // 目录选择改成界面里填路径（见 DataBar 的输入框），不再走系统弹窗：
+  // 系统文件夹框容易被主窗口挡住、又没有路径输入，会把应用卡在等一个看不见的窗口上。
+  if (kind === 'folder') return Promise.resolve(null)
+
   // 跑一次选择框；返回 { ok, value }，ok 表示脚本真的跑完了（用来区分「用户取消」和「解释器起不来」）
   const run = (exe, script) =>
     new Promise((resolve) => {
@@ -739,8 +743,15 @@ async function handleDataFile(req, res) {
   try {
     const body = JSON.parse((await readBody(req)) || '{}')
 
-    // 没有给 path：弹系统选择框让用户挑（kind=dir 挑文件夹，否则挑 json）
-    const target = body.path || (await (body.kind === 'dir' ? pickFolderByDialog() : pickFileByDialog()))
+    // 没有给 path：json 走系统选择框；作品目录必须在界面里填路径（不再弹系统文件夹框）
+    let target = body.path
+    if (!target) {
+      if (body.kind === 'dir') {
+        json(res, 200, { ok: false, cancelled: true, needPath: true, path: dataFile, mode })
+        return
+      }
+      target = await pickFileByDialog()
+    }
     if (!target) {
       json(res, 200, { ok: false, cancelled: true, path: dataFile, mode })
       return

@@ -35,3 +35,11 @@ client-window.log
 client-window.err
 launcher.log
 
+# 单文件 exe 打包中间产物（payload / zip / dotnet 输出都不要进仓库）
+pack/payload
+pack/Launcher/payload.zip
+pack/Launcher/bin
+pack/Launcher/obj
+pack/out
+release
+

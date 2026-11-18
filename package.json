@@ -13,6 +13,7 @@
     "client:build": "vite build",
     "client": "vite build && node client/server.mjs",
     "client:run": "node client/server.mjs",
+    "exe": "pwsh -NoProfile -File pack/build.ps1",
     "icons": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/make-icons.ps1",
     "tauri": "node scripts/tauri.mjs"
   },

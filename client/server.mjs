@@ -204,7 +204,14 @@ async function handleState(req, res) {
 
 /** 让用户在系统文件选择框里挑一个 json（Windows 上用 PowerShell 弹，父窗口置顶避免被挡住） */
 function pickFileByDialog() {
+  // PowerShell 5.1 的 stdout 会被控制台代码页（GBK/437）改写，中文路径经管道传回来会变乱码。
+  // 所以让 PowerShell 把结果直接以 UTF-8 写进临时文件，Node 再读文件，避免编码损失。
+  const resultFile = path.join(os.tmpdir(), `novelui-pick-${process.pid}-${Date.now()}.txt`)
+  // PowerShell 单引号字符串不转义反斜杠，用正斜杠更稳（Windows 一样能打开）
+  const psResultFile = resultFile.replace(/'/g, "''").replace(/\\/g, '/')
+
   const script = `
+[Console]::OutputEncoding = [Text.Encoding]::UTF8
 Add-Type -AssemblyName System.Windows.Forms | Out-Null
 Add-Type -AssemblyName System.Drawing | Out-Null
 # 用一个置顶的隐形父窗口做 owner，否则对话框会跑到应用窗口后面去
@@ -226,7 +233,7 @@ $dialog.Filter = 'JSON 数据 (*.json)|*.json|所有文件 (*.*)|*.*'
 $dialog.CheckFileExists = $true
 
 if ($dialog.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK) {
-  Write-Output $dialog.FileName
+  [IO.File]::WriteAllText('${psResultFile}', $dialog.FileName, (New-Object System.Text.UTF8Encoding($false)))
 }
 $owner.Close()
 `.trim()
@@ -240,18 +247,16 @@ $owner.Close()
       windowsHide: true,
     })
 
-    let out = ''
-    child.stdout.on('data', (chunk) => {
-      out += chunk.toString('utf8')
-    })
     child.on('error', () => resolve(null))
-    child.on('close', () => {
-      const lines = out
-        .trim()
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter(Boolean)
-      resolve(lines.length ? lines[lines.length - 1] : null)
+    child.on('close', async () => {
+      try {
+        const picked = (await readFile(resultFile, 'utf8')).replace(/^\uFEFF/, '').trim()
+        await unlink(resultFile).catch(() => {})
+        resolve(picked || null)
+      } catch {
+        await unlink(resultFile).catch(() => {})
+        resolve(null)
+      }
     })
   })
 }

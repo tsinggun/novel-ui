@@ -11,6 +11,8 @@
 
 const STATE_URL = '/plot-api/state'
 const EXPORT_URL = '/plot-api/export'
+const LIBRARY_URL = '/plot-api/library'
+const INFO_URL = '/plot-api/info'
 
 const notify = (detail) => {
   try {
@@ -82,6 +84,45 @@ export function createWebStorage() {
     /** 网页端导入靠 <input type="file">，这里不提供 */
     async importFile() {
       return null
+    },
+
+    /** 本地运行信息：只有便携版 / 客户端才应答，应答即代表「可以读写本机素材库」 */
+    async localInfo() {
+      try {
+        const res = await fetch(INFO_URL + '?t=' + Date.now(), { cache: 'no-store' })
+        if (!res.ok) return null
+        const json = await res.json()
+        return json || null
+      } catch {
+        return null
+      }
+    },
+
+    /** 素材库：整份读写，不跟作品数据混在一起 */
+    async loadLibrary() {
+      try {
+        const res = await fetch(LIBRARY_URL + '?t=' + Date.now(), { cache: 'no-store' })
+        if (!res.ok) return null
+        const json = await res.json()
+        return json && json.data ? json : null
+      } catch {
+        return null
+      }
+    },
+
+    async saveLibrary(data) {
+      try {
+        const res = await fetch(LIBRARY_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ data }),
+        })
+        if (!res.ok) return { ok: false, path: '' }
+        const json = await res.json()
+        return { ok: true, path: json.path || '' }
+      } catch {
+        return { ok: false, path: '' }
+      }
     },
   }
 }

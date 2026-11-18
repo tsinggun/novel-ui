@@ -83,5 +83,22 @@ export function createTauriStorage() {
       if (!res || !res.data) return null
       return res
     },
+
+    /** 原生窗口里本来就在本地跑，直接视为「可读写本机素材库」 */
+    async localInfo() {
+      return { platform: 'tauri', dir: '', library: '' }
+    },
+
+    async loadLibrary() {
+      const res = await invoke('novel_load_library')
+      if (!res || !res.data) return null
+      return res
+    },
+
+    async saveLibrary(data) {
+      const res = await invoke('novel_save_library', { data })
+      if (!res || res.ok === false) return { ok: false, path: '' }
+      return { ok: true, path: res.path || '' }
+    },
   }
 }

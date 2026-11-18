@@ -1,14 +1,19 @@
-const TABS = [
+const BASE_TABS = [
   { id: 'builder', label: '构造器' },
   { id: 'character', label: '人物卡' },
   { id: 'scene', label: '场景卡' },
   { id: 'technique', label: '技法卡' },
 ]
 
-export default function NavTabs({ value, onChange }) {
+const LIBRARY_TAB = { id: 'library', label: '素材库' }
+
+/** showLibrary 只在本地运行（便携版 / 客户端）时为 true，网页版没有这个页 */
+export default function NavTabs({ value, onChange, showLibrary = false }) {
+  const tabs = showLibrary ? [...BASE_TABS, LIBRARY_TAB] : BASE_TABS
+
   return (
     <nav className="nav" aria-label="视图切换">
-      {TABS.map((tab, index) => (
+      {tabs.map((tab, index) => (
         <button
           key={tab.id}
           type="button"

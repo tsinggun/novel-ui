@@ -32,6 +32,11 @@ const exportDir = path.join(projectDir, 'exports')
 
 const BACKUP_KEEP = 10
 
+/* 素材库：本机独立的一份卡片池，不跟任何一部作品混在一起 */
+const libraryDir = path.join(appRoot, '_library')
+const libraryFile = path.join(libraryDir, 'library.json')
+const libraryBackupDir = path.join(libraryDir, 'backups')
+
 const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -143,6 +148,61 @@ async function handleExport(req, res) {
   }
 }
 
+async function handleLibrary(req, res) {
+  await mkdir(libraryDir, { recursive: true })
+
+  if (req.method === 'GET') {
+    try {
+      const data = JSON.parse(await readFile(libraryFile, 'utf8'))
+      const meta = await stat(libraryFile)
+      json(res, 200, {
+        data,
+        path: libraryFile,
+        updatedAt: Math.round(meta.mtimeMs / 1000),
+      })
+    } catch {
+      json(res, 404, { path: libraryFile })
+    }
+    return
+  }
+
+  if (req.method === 'POST') {
+    try {
+      const body = JSON.parse(await readBody(req))
+      if (!body || typeof body.data !== 'object' || body.data === null) {
+        json(res, 400, { error: '缺少 data' })
+        return
+      }
+      const next = {
+        characters: Array.isArray(body.data.characters) ? body.data.characters : [],
+        scenes: Array.isArray(body.data.scenes) ? body.data.scenes : [],
+        techniques: Array.isArray(body.data.techniques) ? body.data.techniques : [],
+      }
+
+      // 写前备份，保留最近 BACKUP_KEEP 份
+      await mkdir(libraryBackupDir, { recursive: true })
+      await copyFile(libraryFile, path.join(libraryBackupDir, `library-${Date.now()}.json`)).catch(
+        () => {},
+      )
+      await writeFile(libraryFile, JSON.stringify(next, null, 2), 'utf8')
+      const files = (await readdir(libraryBackupDir))
+        .filter((name) => name.startsWith('library-') && name.endsWith('.json'))
+        .sort()
+      while (files.length > BACKUP_KEEP) {
+        const oldest = files.shift()
+        await unlink(path.join(libraryBackupDir, oldest)).catch(() => {})
+      }
+
+      json(res, 200, { ok: true, path: libraryFile })
+    } catch (error) {
+      json(res, 500, { error: String(error && error.message ? error.message : error) })
+    }
+    return
+  }
+
+  json(res, 405, { error: '不支持的请求方法' })
+}
+
 async function serveStatic(req, res, url) {
   let pathname = decodeURIComponent(url.pathname)
   if (pathname === '/') pathname = '/index.html'
@@ -179,8 +239,14 @@ const server = createServer(async (req, res) => {
   const url = new URL(req.url || '/', 'http://127.0.0.1')
   if (url.pathname === '/plot-api/state') return handleState(req, res)
   if (url.pathname === '/plot-api/export') return handleExport(req, res)
+  if (url.pathname === '/plot-api/library') return handleLibrary(req, res)
   if (url.pathname === '/plot-api/info') {
-    return json(res, 200, { slug, dir: projectDir, platform: 'portable' })
+    return json(res, 200, {
+      slug,
+      dir: projectDir,
+      library: libraryFile,
+      platform: 'portable',
+    })
   }
   return serveStatic(req, res, url)
 })

@@ -28,3 +28,10 @@ export const loadRemoteState = (...args) => storage.loadState(...args)
 export const saveRemoteState = (...args) => storage.saveState(...args)
 export const exportToDisk = (...args) => storage.exportFile(...args)
 export const importFromDisk = (...args) => storage.importFile(...args)
+
+/** 本机运行信息（便携版/客户端才有；网页端返回 null） */
+export const readLocalInfo = (...args) => storage.localInfo(...args)
+
+/** 素材库：一台机器一份，独立于任何作品，也不会传到线上 */
+export const loadLibrary = (...args) => storage.loadLibrary(...args)
+export const saveLibrary = (...args) => storage.saveLibrary(...args)

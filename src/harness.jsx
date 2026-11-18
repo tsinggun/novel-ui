@@ -19,6 +19,21 @@ window.__NOVEL_UI_MOUNT__ = (container) => {
   host.className = 'novel-ui-host'
   shadow.appendChild(host)
 
+  /* ---- 全局字号缩放 ----
+   * useFontScale 把比例写到 documentElement 的 --fs 上；Shadow DOM 虽然能继承，
+   * 但那样会把 --fs 漏给 Harness 自己的界面。这里同步一份到 shadow 内的 host 上，
+   * 让它只作用于这个面板。 */
+  const syncFontScale = () => {
+    const value = document.documentElement.style.getPropertyValue('--fs')
+    if (value) host.style.setProperty('--fs', value)
+  }
+  syncFontScale()
+  const fontScaleObserver = new MutationObserver(syncFontScale)
+  fontScaleObserver.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['style'],
+  })
+
   /* ---- 落盘状态条 ---- */
   const bar = document.createElement('div')
   bar.className = 'novel-ui-persist'
@@ -58,11 +73,21 @@ window.__NOVEL_UI_MOUNT__ = (container) => {
   }
   window.addEventListener('novel-ui:persist', onPersist)
 
+  /* Shadow DOM 里的元素 document.getElementById 找不到，给 UI 留一个内部查找入口 */
+  window.__NOVEL_UI_FOCUS__ = (id) => {
+    const el = shadow.getElementById(id)
+    if (!el) return false
+    el.focus()
+    return true
+  }
+
   const root = createRoot(host)
   root.render(<App />)
 
   return () => {
     window.removeEventListener('novel-ui:persist', onPersist)
+    delete window.__NOVEL_UI_FOCUS__
+    fontScaleObserver.disconnect()
     if (hideTimer) clearTimeout(hideTimer)
     root.unmount()
     shadow.innerHTML = ''

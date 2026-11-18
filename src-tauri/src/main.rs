@@ -218,6 +218,82 @@ fn novel_switch_project(app: AppHandle, slug: String) -> Result<String, String> 
     Ok(name)
 }
 
+/// 素材库：<文档>/NovelUI/_library/library.json，独立于任何作品
+fn library_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    let documents = app
+        .path()
+        .document_dir()
+        .map_err(|error| format!("找不到文档目录：{error}"))?;
+    let dir = documents.join(APP_DIR).join("_library");
+    fs::create_dir_all(dir.join("backups")).map_err(|error| error.to_string())?;
+    Ok(dir)
+}
+
+#[tauri::command]
+fn novel_load_library(app: AppHandle) -> Result<Option<LoadResult>, String> {
+    let dir = library_dir(&app)?;
+    let file = dir.join("library.json");
+    if !file.exists() {
+        return Ok(None);
+    }
+    let text = fs::read_to_string(&file).map_err(|error| error.to_string())?;
+    let data: serde_json::Value = serde_json::from_str(&text).map_err(|error| error.to_string())?;
+    let updated_at = fs::metadata(&file)
+        .and_then(|meta| meta.modified())
+        .ok()
+        .and_then(|time| time.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|duration| duration.as_secs())
+        .unwrap_or(0);
+
+    Ok(Some(LoadResult {
+        data,
+        path: file.to_string_lossy().to_string(),
+        updated_at,
+    }))
+}
+
+#[tauri::command]
+fn novel_save_library(app: AppHandle, data: serde_json::Value) -> Result<SaveResult, String> {
+    let dir = library_dir(&app)?;
+    let file = dir.join("library.json");
+
+    // 写前备份，保留最近 BACKUP_KEEP 份
+    if file.exists() {
+        let backups = dir.join("backups");
+        let stamp = now_millis();
+        let _ = fs::copy(&file, backups.join(format!("library-{stamp}.json")));
+        let mut entries: Vec<PathBuf> = fs::read_dir(&backups)
+            .map_err(|error| error.to_string())?
+            .filter_map(|entry| entry.ok().map(|item| item.path()))
+            .filter(|path| {
+                path.file_name()
+                    .and_then(|name| name.to_str())
+                    .map(|name| name.starts_with("library-"))
+                    .unwrap_or(false)
+            })
+            .collect();
+        entries.sort();
+        while entries.len() > BACKUP_KEEP {
+            if let Some(oldest) = entries.first().cloned() {
+                let _ = fs::remove_file(oldest);
+                entries.remove(0);
+            } else {
+                break;
+            }
+        }
+    }
+
+    let temp = dir.join("library.json.tmp");
+    let text = serde_json::to_string_pretty(&data).map_err(|error| error.to_string())?;
+    fs::write(&temp, text).map_err(|error| error.to_string())?;
+    fs::rename(&temp, &file).map_err(|error| error.to_string())?;
+
+    Ok(SaveResult {
+        ok: true,
+        path: file.to_string_lossy().to_string(),
+    })
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -228,7 +304,9 @@ fn main() {
             novel_export_file,
             novel_pick_project,
             novel_project_slug,
-            novel_switch_project
+            novel_switch_project,
+            novel_load_library,
+            novel_save_library
         ])
         .run(tauri::generate_context!())
         .expect("启动客户端失败");

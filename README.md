@@ -131,24 +131,64 @@ novel-ui/
 
 `platform = { name, isDesktop }` 可直接给 UI 用来区分形态；IO 状态事件仍走 `novel-ui:persist`。
 
-客户端侧预留的 Rust 命令契约（尚未实现，`invoke` 失败会自动降级，网页端不受影响）：
+客户端侧 Rust 命令（已实现在 `src-tauri/src/main.rs`）：
 
 ```text
 novel_load_state()              -> { data, path, updatedAt } | null
-novel_save_state({ data })      -> { ok, path }
+novel_save_state({ data })      -> { ok, path }         写临时文件后改名，写前自动备份
 novel_export_file({ payload })  -> { path } | null
 novel_pick_project()            -> { path, data } | null
+novel_project_slug()            -> String
+novel_switch_project({ slug })  -> String
 ```
 
-计划的目录式作品存储布局：
+目录式作品存储布局（客户端与便携版共用）：
 
 ```text
-<作品目录>/
-  project.json                  # 卡片库 + 构造器状态
-  backups/project-<时间>.json   # 自动备份，保留最近 N 份
-  chapters/                     # 章节草稿（后续）
-  exports/*.json                # 手动导出
+<文档>/NovelUI/
+  current-project.txt           # 当前作品名（默认 default）
+  <作品>/
+    project.json                # 卡片库 + 构造器状态
+    backups/project-<时间>.json # 自动备份，保留最近 10 份
+    exports/*.json              # 手动导出
 ```
+
+## 客户端（两种形态）
+
+### 1. 便携版（今天就能用，不需要编译器）
+
+本机装了 Node + Edge 即可：
+
+```bash
+npm run client          # 构建 dist 并开窗口（等于 双击「启动小说构建器.cmd」）
+npm run client:build    # 只构建
+npm run client:run      # 只起服务（dist 已构建过）
+```
+
+原理是 `client/server.mjs`：本机随机端口起静态服务 + 复刻 `/plot-api` 接口（数据落 `<文档>/NovelUI/<作品>/`），再用 `msedge --app=` 开一个无地址栏窗口，关窗即退出进程。窗口用独立 profile（`NovelUI/.window-profile`），不干扰你日常的 Edge。
+
+- 数据位置：`%USERPROFILE%\Documents\NovelUI\default\project.json`
+- 备份：每次写盘前先把旧文件拷进 `backups/`，只留最近 10 份
+- 换作品：设环境变量 `NOVEL_PROJECT=我的长篇` 再启动
+
+### 2. Tauri 打包版（需要 C++ 工具链）
+
+工程已就绪：`src-tauri/`（`Cargo.toml`、`tauri.conf.json`、`capabilities/default.json`、图标），先自查环境：
+
+```bash
+node scripts/tauri.mjs          # 检查 cargo / rustc / std / MSVC 链接器
+node scripts/tauri.mjs build    # 条件齐了才真正打包（NSIS 安装包）
+npm run icons                   # 重新生成 src-tauri/icons
+```
+
+当前这台机器的缺口（脚本会直接告诉你）：Rust 缺 `x86_64-pc-windows-msvc` 的 std 组件，且没有 MSVC 链接器（Visual Studio 里没勾「使用 C++ 的桌面开发」）。补齐方式：
+
+```text
+rustup target add x86_64-pc-windows-msvc
+Visual Studio Installer → 修改 → 勾选「使用 C++ 的桌面开发」→ 安装
+```
+
+补齐后再跑 `node scripts/tauri.mjs build`，产物在 `src-tauri/target/release/bundle/nsis/`。
 
 ## 数据与持久化
 

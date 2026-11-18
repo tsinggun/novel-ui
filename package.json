@@ -9,7 +9,12 @@
     "build:pages": "vite build --mode pages",
     "deploy": "npm run build:pages && node scripts/deploy-pages.mjs",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "client:build": "vite build",
+    "client": "vite build && node client/server.mjs",
+    "client:run": "node client/server.mjs",
+    "icons": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/make-icons.ps1",
+    "tauri": "node scripts/tauri.mjs"
   },
   "dependencies": {
     "react": "^19.3.1",

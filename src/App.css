@@ -903,13 +903,87 @@
 /* 二层「选择技法」弹窗 */
 .tech-select__search {
   height: 38px;
+  flex: 0 0 auto;
   font-size: calc(12px * var(--fs));
 }
 
 .tech-select__tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 5px;
+  flex: 0 0 auto;
+  max-height: calc(26px * 3 + 10px);
+  padding-right: 2px;
+  overflow-y: auto;
+}
+
+.tech-select__tags.is-expanded {
+  max-height: calc(26px * 6 + 10px);
+}
+
+.tech-select__active {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+}
+
+.tech-select__active-label {
+  font-size: calc(11px * var(--fs));
+  letter-spacing: 0.1em;
+  color: var(--text-mute);
+}
+
+.tech-select__active-clear {
+  font-size: calc(11px * var(--fs));
+}
+
+/* 交集筛选用的标签按钮（之前漏了样式，默认 block 按钮被拉成一堆灰块） */
+.tag-filter__item {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px dashed var(--line-strong);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: calc(11.5px * var(--fs));
+  letter-spacing: 0.06em;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+
+.tag-filter__item:hover {
+  border-color: #c8c8c8;
+  color: #ffffff;
+}
+
+.tag-filter__item.is-active {
+  border-style: solid;
+  border-color: #d8d8d8;
+  background: #262626;
+  color: #ffffff;
+}
+
+.tag-filter__count {
+  font-size: calc(10px * var(--fs));
+  color: var(--text-mute);
+}
+
+.tag-filter__item.is-active .tag-filter__count,
+.tag-filter__item:hover .tag-filter__count {
+  color: #cfcfcf;
+}
+
+.tag-filter__more {
+  border-style: solid;
+  border-color: #2c2c2c;
+  color: #d8d8d8;
 }
 
 .tech-select__list {

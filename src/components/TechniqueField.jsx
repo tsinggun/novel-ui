@@ -83,7 +83,10 @@ export default function TechniqueField({
 function TechniqueSelectModal({ techniques, selectedIds, onChange, onClose }) {
   const [query, setQuery] = useState('')
   const [activeTags, setActiveTags] = useState([])
+  const [tagsExpanded, setTagsExpanded] = useState(false)
   const keyword = query.trim().toLowerCase()
+  /** 标签区默认只露这么多，其余折进「+N 更多」 */
+  const TAG_LIMIT = 14
 
   // Esc 只关这一层：capture + stopImmediatePropagation，避免把下面的详情弹窗一起关掉
   useEffect(() => {
@@ -96,13 +99,21 @@ function TechniqueSelectModal({ techniques, selectedIds, onChange, onClose }) {
     return () => window.removeEventListener('keydown', handleKey, true)
   }, [onClose])
 
-  const tagCounts = useMemo(() => {
+  // 只列「点下去一定还有结果」的标签：交集模式下的候选池
+  const tagPool = useMemo(() => {
     const map = new Map()
     techniques.forEach((tech) => {
-      ;(tech.tags || []).forEach((tag) => map.set(tag, (map.get(tag) || 0) + 1))
+      const tags = tech.tags || []
+      if (!activeTags.every((tag) => tags.includes(tag))) return
+      tags.forEach((tag) => {
+        if (activeTags.includes(tag)) return
+        map.set(tag, (map.get(tag) || 0) + 1)
+      })
     })
     return [...map.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-  }, [techniques])
+  }, [techniques, activeTags])
+
+  const shownTags = tagsExpanded ? tagPool : tagPool.slice(0, TAG_LIMIT)
 
   const filtered = useMemo(
     () =>
@@ -158,8 +169,34 @@ function TechniqueSelectModal({ techniques, selectedIds, onChange, onClose }) {
             onChange={(event) => setQuery(event.target.value)}
           />
 
-          {tagCounts.length > 0 && (
-            <div className="tech-select__tags">
+          {activeTags.length > 0 && (
+            <div className="tech-select__active">
+              <span className="tech-select__active-label">已选标签</span>
+              {activeTags.map((tag) => (
+                <span key={tag} className="tag-chip">
+                  {tag}
+                  <button
+                    type="button"
+                    className="tag-chip__remove"
+                    aria-label={`取消标签 ${tag}`}
+                    onClick={() => setActiveTags((prev) => prev.filter((item) => item !== tag))}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+              <button
+                type="button"
+                className="btn btn--link tech-select__active-clear"
+                onClick={() => setActiveTags([])}
+              >
+                清空
+              </button>
+            </div>
+          )}
+
+          {tagPool.length > 0 && (
+            <div className={`tech-select__tags${tagsExpanded ? ' is-expanded' : ''}`}>
               <button
                 type="button"
                 className={`tag-filter__item${activeTags.length === 0 ? ' is-active' : ''}`}
@@ -167,20 +204,25 @@ function TechniqueSelectModal({ techniques, selectedIds, onChange, onClose }) {
               >
                 全部 {techniques.length}
               </button>
-              {tagCounts.map(([tag, count]) => (
+              {shownTags.map(([tag, count]) => (
                 <button
                   key={tag}
                   type="button"
-                  className={`tag-filter__item${activeTags.includes(tag) ? ' is-active' : ''}`}
-                  onClick={() =>
-                    setActiveTags((prev) =>
-                      prev.includes(tag) ? prev.filter((item) => item !== tag) : [...prev, tag],
-                    )
-                  }
+                  className="tag-filter__item"
+                  onClick={() => setActiveTags((prev) => [...prev, tag])}
                 >
-                  {tag} {count}
+                  {tag} <span className="tag-filter__count">{count}</span>
                 </button>
               ))}
+              {tagPool.length > TAG_LIMIT && (
+                <button
+                  type="button"
+                  className="tag-filter__item tag-filter__more"
+                  onClick={() => setTagsExpanded((value) => !value)}
+                >
+                  {tagsExpanded ? '收起' : `+${tagPool.length - TAG_LIMIT} 更多标签`}
+                </button>
+              )}
             </div>
           )}
 

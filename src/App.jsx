@@ -14,7 +14,7 @@ import './App.css'
 function App() {
   const [tab, setTab] = useState('builder')
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [previewSignal, setPreviewSignal] = useState(0)
+  const [previewOpen, setPreviewOpen] = useState(false)
   /** 只有在本地跑（便携版 / 客户端）时才有数据文件条和「退出」 */
   const [local, setLocal] = useState(false)
   const settingsRef = useRef(null)
@@ -50,7 +50,7 @@ function App() {
 
   const openPreview = () => {
     setTab('builder')
-    setPreviewSignal((value) => value + 1)
+    setPreviewOpen(true)
   }
 
   const quit = () => {
@@ -105,12 +105,24 @@ function App() {
       <div className="shell__body">
         <aside className="sidebar">
           <span className="sidebar__caption">视图</span>
-          <NavTabs value={tab} onChange={setTab} layout="side" />
+          <NavTabs
+            value={tab}
+            onChange={(id) => {
+              setPreviewOpen(false)
+              setTab(id)
+            }}
+            layout="side"
+          />
         </aside>
 
         <main className="workspace">
           {tab === 'builder' && (
-            <BuilderPage novel={novel} onNavigate={setTab} previewSignal={previewSignal} />
+            <BuilderPage
+              novel={novel}
+              onNavigate={setTab}
+              previewOpen={previewOpen}
+              onPreviewClose={() => setPreviewOpen(false)}
+            />
           )}
           {tab === 'character' && <CharacterPage novel={novel} />}
           {tab === 'scene' && <ScenePage novel={novel} />}

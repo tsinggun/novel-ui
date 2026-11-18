@@ -16,14 +16,13 @@ const SECTIONS = [
   { id: 'plot', label: '情节' },
 ]
 
-export default function BuilderPage({ novel, onNavigate }) {
+export default function BuilderPage({ novel, onNavigate, previewOpen = false, onPreviewClose }) {
   const { data } = novel
   const [section, setSection] = useState('recap')
   const [plotDraft, setPlotDraft] = useState(emptyPlotDraft)
   const [plotHint, setPlotHint] = useState('')
   const [plotDialogOpen, setPlotDialogOpen] = useState(false)
   const [editingPlot, setEditingPlot] = useState(null)
-  const [previewOpen, setPreviewOpen] = useState(false)
   const [notice, setNotice] = useState('')
   const [sceneOpen, setSceneOpen] = useState(false)
   const [openCharacterId, setOpenCharacterId] = useState(null)
@@ -160,9 +159,6 @@ export default function BuilderPage({ novel, onNavigate }) {
           <p className="page__hint">把已加入的人物、场景与情节，组织成这一章的骨架。</p>
         </div>
         <div className="page__tools">
-          <button type="button" className="btn btn--sm" onClick={() => setPreviewOpen(true)}>
-            提示词预览
-          </button>
           <button type="button" className="btn btn--sm btn--ghost" onClick={handleExport}>
             导出
           </button>
@@ -751,8 +747,10 @@ export default function BuilderPage({ novel, onNavigate }) {
         onNavigate={() => onNavigate('technique')}
         onIntroChange={(value) => novel.setPromptIntro(value)}
         onReset={() => novel.setPromptIntro(null)}
-        onClose={() => setPreviewOpen(false)}
+        onClose={() => onPreviewClose?.()}
       />
     </section>
   )
 }
+
+

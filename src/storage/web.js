@@ -13,7 +13,7 @@ const STATE_URL = '/plot-api/state'
 const EXPORT_URL = '/plot-api/export'
 const LIBRARY_URL = '/plot-api/library'
 const INFO_URL = '/plot-api/info'
-const PROJECT_URL = '/plot-api/project'
+const DATA_FILE_URL = '/plot-api/data-file'
 
 const notify = (detail) => {
   try {
@@ -100,24 +100,25 @@ export function createWebStorage() {
     },
 
     /** 素材库：整份读写，不跟作品数据混在一起 */
-    /** 打开项目 = 选一个文件夹；不传 dir 就让系统弹选择框 */
-    async openProject(dir) {
+    /** 载入数据 = 选一个 json 文件；不传 path 就让系统弹文件框 */
+    async openDataFile(pathIn) {
       try {
-        const res = await fetch(PROJECT_URL, {
+        const res = await fetch(DATA_FILE_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(dir ? { dir } : {}),
+          body: JSON.stringify(pathIn ? { path: pathIn } : {}),
         })
-        if (!res.ok) return { ok: false, cancelled: false, dir: '', error: 'HTTP ' + res.status }
+        if (!res.ok) return { ok: false, cancelled: false, error: 'HTTP ' + res.status }
         const json = await res.json()
         return {
           ok: Boolean(json.ok),
           cancelled: Boolean(json.cancelled),
-          dir: json.dir || '',
+          path: json.path || '',
+          data: json.data || null,
           error: json.error || '',
         }
       } catch (error) {
-        return { ok: false, cancelled: false, dir: '', error: String(error) }
+        return { ok: false, cancelled: false, error: String(error) }
       }
     },
 

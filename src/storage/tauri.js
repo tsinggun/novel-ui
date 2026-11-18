@@ -89,13 +89,14 @@ export function createTauriStorage() {
       return { platform: 'tauri', dir: '', library: '' }
     },
 
-    /** 打开项目：不传 dir 时用原生文件夹对话框 */
-    async openProject(dir) {
-      const res = dir
-        ? await invoke('novel_open_project', { dir })
-        : await invoke('novel_pick_folder')
-      if (!res || res.cancelled) return { ok: false, cancelled: true, dir: '' }
-      return { ok: true, cancelled: false, dir: res.dir || '' }
+    /** 载入数据文件：不传 path 时用原生文件对话框；成功后会切到该文件，改动都写回它 */
+    async openDataFile(pathIn) {
+      const res = pathIn
+        ? await invoke('novel_open_data_file', { path: pathIn })
+        : await invoke('novel_pick_data_file')
+      if (!res) return { ok: false, cancelled: true, path: '', data: null }
+      if (!res.data) return { ok: false, cancelled: false, path: '', data: null, error: '读取失败' }
+      return { ok: true, cancelled: false, path: res.path || '', data: res.data }
     },
 
     async loadLibrary() {

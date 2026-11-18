@@ -15,7 +15,7 @@ export {
   exportToDisk,
   importFromDisk,
   readLocalInfo,
-  openProject,
+  openDataFile,
   loadLibrary,
   saveLibrary,
   storage,

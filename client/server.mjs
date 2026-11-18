@@ -24,42 +24,61 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const distDir = path.resolve(here, '..', 'dist')
 
 const appRoot = path.join(os.homedir(), 'Documents', 'NovelUI')
-/** 上次打开的项目文件夹，记在这里，下次启动直接接着用 */
-const lastProjectFile = path.join(appRoot, 'last-project.txt')
+/** 上次载入的数据文件，记在这里，下次启动直接接着用 */
+const lastFileRecord = path.join(appRoot, 'last-file.txt')
+/** 默认数据文件（第一次启动时的落点） */
+const defaultDataFile = path.join(appRoot, 'default', 'project.json')
 
 const BACKUP_KEEP = 10
 
 /**
- * 项目 = 一个文件夹。人物卡 / 场景卡 / 技法卡 / 构造器状态都存在这个文件夹里的 project.json，
- * 换个文件夹就是换一个项目，项目之间互不共享。
+ * 数据 = 一个 json 文件。「载入数据」选一个 json，里面的卡片装进界面；
+ * 在客户端里的所有修改，都写回这个文件（写前自动备份）。
  */
-let projectDir = path.join(appRoot, process.env.NOVEL_PROJECT || 'default')
+let dataFile = defaultDataFile
 
-const stateFile = () => path.join(projectDir, 'project.json')
-const backupDir = () => path.join(projectDir, 'backups')
-const exportDir = () => path.join(projectDir, 'exports')
+const stateFile = () => dataFile
+const dataDir = () => path.dirname(dataFile)
+const backupDir = () => path.join(dataDir(), '_novelui-backups')
+const exportDir = () => path.join(dataDir(), '_novelui-exports')
 
-/** 启动时优先用 NOVEL_PROJECT，其次上次打开的项目文件夹，最后才是文档里的 default */
-async function restoreLastProject() {
-  if (process.env.NOVEL_PROJECT) return
+/** 启动时优先用 NOVEL_FILE，其次上次载入的文件，最后用文档里的默认文件 */
+async function restoreLastFile() {
+  if (process.env.NOVEL_FILE) {
+    dataFile = path.resolve(process.env.NOVEL_FILE)
+    return
+  }
   try {
-    const saved = (await readFile(lastProjectFile, 'utf8')).trim()
-    if (saved && existsSync(path.join(saved, 'project.json'))) projectDir = saved
+    const saved = (await readFile(lastFileRecord, 'utf8')).trim()
+    if (saved && existsSync(saved)) dataFile = saved
   } catch {
     /* 没有记录就留默认 */
   }
 }
 
-async function setProjectDir(dir) {
-  const trimmed = String(dir || '').trim()
+async function readDataFile(file) {
+  const text = await readFile(file, 'utf8')
+  const parsed = JSON.parse(text)
+  const wrapped =
+    parsed && typeof parsed === 'object' && parsed.data && typeof parsed.data === 'object'
+      ? parsed.data
+      : parsed
+  if (!wrapped || typeof wrapped !== 'object') throw new Error('这个 json 里不是数据对象')
+  return wrapped
+}
+
+/** 切到一个数据文件：校验能解析，然后记住它 */
+async function setDataFile(target) {
+  const trimmed = String(target || '').trim()
   if (!trimmed) throw new Error('路径为空')
   const absolute = path.resolve(trimmed)
-  await mkdir(path.join(absolute, 'backups'), { recursive: true })
-  await mkdir(path.join(absolute, 'exports'), { recursive: true })
-  projectDir = absolute
+  if (!existsSync(absolute)) throw new Error('文件不存在：' + absolute)
+  if (!absolute.toLowerCase().endsWith('.json')) throw new Error('请选择 .json 文件')
+  const data = await readDataFile(absolute)
+  dataFile = absolute
   await mkdir(appRoot, { recursive: true }).catch(() => {})
-  await writeFile(lastProjectFile, absolute, 'utf8').catch(() => {})
-  return absolute
+  await writeFile(lastFileRecord, absolute, 'utf8').catch(() => {})
+  return { path: absolute, data }
 }
 
 /* 素材库：本机独立的一份卡片池，跨项目复用（不在任何项目文件夹里） */
@@ -117,10 +136,11 @@ async function rotateBackup() {
   const dir = backupDir()
   await mkdir(dir, { recursive: true })
   const stamp = new Date().toISOString().replace(/[:.]/g, '-')
-  await copyFile(file, path.join(dir, `project-${stamp}.json`))
+  const base = path.basename(file, '.json')
+  await copyFile(file, path.join(dir, `${base}-${stamp}.json`))
 
   const files = (await readdir(dir))
-    .filter((name) => name.startsWith('project-') && name.endsWith('.json'))
+    .filter((name) => name.startsWith(`${base}-`) && name.endsWith('.json'))
     .sort()
   while (files.length > BACKUP_KEEP) {
     const oldest = files.shift()
@@ -129,7 +149,7 @@ async function rotateBackup() {
 }
 
 async function handleState(req, res) {
-  await mkdir(projectDir, { recursive: true })
+  await mkdir(dataDir(), { recursive: true })
 
   if (req.method === 'GET') {
     try {
@@ -137,9 +157,9 @@ async function handleState(req, res) {
       const text = await readFile(file, 'utf8')
       const data = JSON.parse(text)
       const meta = await stat(file)
-      json(res, 200, { data, path: file, dir: projectDir, updatedAt: Math.round(meta.mtimeMs / 1000) })
+      json(res, 200, { data, path: file, dir: dataDir(), updatedAt: Math.round(meta.mtimeMs / 1000) })
     } catch {
-      json(res, 404, { path: stateFile(), dir: projectDir })
+      json(res, 404, { path: stateFile(), dir: dataDir() })
     }
     return
   }
@@ -153,10 +173,10 @@ async function handleState(req, res) {
       }
       await rotateBackup()
       const file = stateFile()
-      const temp = path.join(projectDir, 'project.json.tmp')
+      const temp = path.join(dataDir(), `.${path.basename(file)}.tmp`)
       await writeFile(temp, JSON.stringify(body.data, null, 2), 'utf8')
       await rename(temp, file)
-      json(res, 200, { ok: true, path: file, dir: projectDir })
+      json(res, 200, { ok: true, path: file, dir: dataDir() })
     } catch (error) {
       json(res, 500, { error: String(error && error.message ? error.message : error) })
     }
@@ -166,14 +186,14 @@ async function handleState(req, res) {
   json(res, 405, { error: '不支持的请求方法' })
 }
 
-/** 让用户在系统文件夹选择框里挑一个项目文件夹（Windows 上用 PowerShell 弹） */
-function pickFolderByDialog() {
+/** 让用户在系统文件选择框里挑一个 json（Windows 上用 PowerShell 弹，父窗口置顶避免被挡住） */
+function pickFileByDialog() {
   const script = `
 Add-Type -AssemblyName System.Windows.Forms | Out-Null
 Add-Type -AssemblyName System.Drawing | Out-Null
 # 用一个置顶的隐形父窗口做 owner，否则对话框会跑到应用窗口后面去
 $owner = New-Object System.Windows.Forms.Form
-$owner.Text = '打开项目'
+$owner.Text = '载入数据'
 $owner.TopMost = $true
 $owner.ShowInTaskbar = $false
 $owner.FormBorderStyle = 'None'
@@ -184,12 +204,13 @@ $owner.Opacity = 0
 $owner.Show()
 $owner.Activate()
 
-$dialog = New-Object System.Windows.Forms.FolderBrowserDialog
-$dialog.Description = '选择一个项目文件夹（人物卡、场景卡、技法卡都保存在里面）'
-$dialog.ShowNewFolderButton = $true
+$dialog = New-Object System.Windows.Forms.OpenFileDialog
+$dialog.Title = '载入数据文件（json）'
+$dialog.Filter = 'JSON 数据 (*.json)|*.json|所有文件 (*.*)|*.*'
+$dialog.CheckFileExists = $true
 
 if ($dialog.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK) {
-  Write-Output $dialog.SelectedPath
+  Write-Output $dialog.FileName
 }
 $owner.Close()
 `.trim()
@@ -219,9 +240,10 @@ $owner.Close()
   })
 }
 
-async function handleProject(req, res) {
+/** 载入数据：GET 看当前文件，POST 换一个 json 文件并返回里面的数据 */
+async function handleDataFile(req, res) {
   if (req.method === 'GET') {
-    json(res, 200, { dir: projectDir })
+    json(res, 200, { path: dataFile })
     return
   }
 
@@ -233,22 +255,17 @@ async function handleProject(req, res) {
   try {
     const body = JSON.parse((await readBody(req)) || '{}')
 
-    // 没有给 dir：弹系统文件夹选择框让用户挑
-    if (!body.dir) {
-      const picked = await pickFolderByDialog()
-      if (!picked) {
-        json(res, 200, { ok: false, cancelled: true, dir: projectDir })
-        return
-      }
-      const applied = await setProjectDir(picked)
-      json(res, 200, { ok: true, cancelled: false, dir: applied })
+    // 没有给 path：弹系统文件选择框让用户挑
+    const target = body.path || (await pickFileByDialog())
+    if (!target) {
+      json(res, 200, { ok: false, cancelled: true, path: dataFile })
       return
     }
 
-    const applied = await setProjectDir(body.dir)
-    json(res, 200, { ok: true, cancelled: false, dir: applied })
+    const applied = await setDataFile(target)
+    json(res, 200, { ok: true, cancelled: false, path: applied.path, data: applied.data })
   } catch (error) {
-    json(res, 500, { error: String(error && error.message ? error.message : error) })
+    json(res, 200, { ok: false, error: String(error && error.message ? error.message : error) })
   }
 }
 
@@ -355,8 +372,8 @@ if (!existsSync(path.join(distDir, 'index.html'))) {
   process.exit(1)
 }
 
-// 接着上次打开的项目文件夹；没有记录就用文档里的 default
-await restoreLastProject()
+// 接着上次载入的数据文件；没有记录就用文档里的默认文件
+await restoreLastFile()
 
 const server = createServer(async (req, res) => {
   lastActiveAt = Date.now()
@@ -364,11 +381,12 @@ const server = createServer(async (req, res) => {
   if (url.pathname === '/plot-api/state') return handleState(req, res)
   if (url.pathname === '/plot-api/export') return handleExport(req, res)
   if (url.pathname === '/plot-api/library') return handleLibrary(req, res)
-  if (url.pathname === '/plot-api/project') return handleProject(req, res)
+  if (url.pathname === '/plot-api/data-file') return handleDataFile(req, res)
   if (url.pathname === '/plot-api/info') {
     return json(res, 200, {
-      project: path.basename(projectDir),
-      dir: projectDir,
+      file: path.basename(dataFile),
+      path: dataFile,
+      dir: dataDir(),
       library: libraryFile,
       platform: 'portable',
     })
@@ -519,7 +537,7 @@ async function onListening() {
   const port = server.address().port
   const targetUrl = `http://127.0.0.1:${port}/`
   console.log(`小说构建器 · 便携版`)
-  console.log(`  项目文件夹：${projectDir}`)
+  console.log(`  数据文件：${dataFile}`)
   console.log(`  本地地址：${targetUrl}`)
 
   if (process.argv.includes('--no-window')) return

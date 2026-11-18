@@ -32,8 +32,8 @@ export const importFromDisk = (...args) => storage.importFile(...args)
 /** 本机运行信息（便携版/客户端才有；网页端返回 null） */
 export const readLocalInfo = (...args) => storage.localInfo(...args)
 
-/** 打开项目 = 选一个文件夹，里面的 project.json 存人物卡/场景卡/技法卡 */
-export const openProject = (...args) => storage.openProject(...args)
+/** 载入数据 = 选一个 json 文件，客户端的修改会写回这个文件 */
+export const openDataFile = (...args) => storage.openDataFile(...args)
 
 /** 素材库：一台机器一份，独立于任何作品，也不会传到线上 */
 export const loadLibrary = (...args) => storage.loadLibrary(...args)

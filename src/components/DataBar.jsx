@@ -1,16 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
-import { openProject, readLocalInfo } from '../persist'
+import { openDataFile, readLocalInfo } from '../persist'
 import './ProjectBar.css'
 
 /**
- * 项目 = 一个文件夹。
- * 只在本地运行（便携版 / 客户端）出现：人物卡 / 场景卡 / 技法卡都读写这个文件夹里的 project.json。
+ * 数据文件条（只在本地运行时出现）。
  *
- * 打开方式两种：点「浏览…」用系统对话框挑，或直接把路径粘进输入框回车 —— 后者不依赖弹框，最稳。
+ * 「载入数据」= 选一个 json 文件，把里面的卡片装进界面；
+ * 之后在客户端里的所有改动都会自动写回这个文件（写前备份到同目录 _novelui-backups）。
+ *
+ * 两种载入方式：点「浏览文件…」用系统对话框，或直接把路径粘进输入框回车。
  */
-export default function ProjectBar({ onSwitchProject }) {
+export default function DataBar({ onLoadData }) {
   const [local, setLocal] = useState(false)
-  const [dir, setDir] = useState('')
+  const [file, setFile] = useState('')
   const [input, setInput] = useState('')
   const [opened, setOpened] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -23,7 +25,7 @@ export default function ProjectBar({ onSwitchProject }) {
       const info = await readLocalInfo()
       if (!alive || !info) return
       setLocal(true)
-      setDir(info.dir || '')
+      setFile(info.path || info.file || '')
     })()
     return () => {
       alive = false
@@ -36,23 +38,23 @@ export default function ProjectBar({ onSwitchProject }) {
 
   if (!local) return null
 
-  /** path 为空 = 走系统对话框 */
-  const switchTo = async (path) => {
+  /** path 为空 = 走系统文件对话框 */
+  const load = async (path) => {
     if (busy) return
     setBusy(true)
     setError('')
     try {
-      const res = await openProject(path || undefined)
+      const res = await openDataFile(path || undefined)
       if (res.cancelled) return
       if (!res.ok) {
-        setError(res.error || '这个路径打不开，检查一下是否存在')
+        setError(res.error || '这个文件读不了，确认是 json 格式')
         setOpened(true)
         return
       }
-      setDir(res.dir)
+      setFile(res.path)
       setInput('')
       setOpened(false)
-      onSwitchProject?.(res.dir)
+      onLoadData?.(res.data, res.path)
     } finally {
       setBusy(false)
     }
@@ -63,15 +65,15 @@ export default function ProjectBar({ onSwitchProject }) {
     event.preventDefault()
     const path = input.trim()
     if (!path) return
-    switchTo(path)
+    load(path)
   }
 
-  const name = dir ? dir.split(/[\\/]/).filter(Boolean).pop() : '未选择'
+  const name = file ? file.split(/[\\/]/).filter(Boolean).pop() : '未选择'
 
   return (
     <div className="project-bar">
-      <span className="project-bar__label">当前项目</span>
-      <span className="project-bar__name" title={dir}>
+      <span className="project-bar__label">数据文件</span>
+      <span className="project-bar__name" title={file}>
         {name}
       </span>
 
@@ -79,45 +81,45 @@ export default function ProjectBar({ onSwitchProject }) {
         type="button"
         className="btn btn--solid btn--sm"
         onClick={() => setOpened((value) => !value)}
-        title="换一个文件夹作为项目：卡片都存在这个文件夹里"
+        title="载入一个存着卡片数据的 json 文件"
       >
-        打开项目
+        载入数据
       </button>
 
       <button
         type="button"
         className="btn btn--sm"
-        onClick={() => switchTo(null)}
+        onClick={() => load(null)}
         disabled={busy}
-        title="用系统对话框选文件夹"
+        title="用系统对话框选 json 文件"
       >
-        {busy ? '处理中…' : '浏览…'}
+        {busy ? '处理中…' : '浏览文件…'}
       </button>
 
       {error && <span className="project-bar__error">{error}</span>}
 
       {opened && (
         <div className="project-bar__panel">
-          <label className="project-bar__panel-label" htmlFor="project-path">
-            文件夹路径
+          <label className="project-bar__panel-label" htmlFor="data-path">
+            文件路径
           </label>
           <input
-            id="project-path"
+            id="data-path"
             ref={inputRef}
             className="input project-bar__input"
             value={input}
             onChange={(event) => setInput(event.target.value)}
             onKeyDown={submitInput}
-            placeholder="粘贴路径后回车，例如 D:\小说\我的长篇"
+            placeholder="粘贴 json 路径后回车，例如 D:\小说\我的书\project.json"
             spellCheck={false}
           />
           <button
             type="button"
             className="btn btn--solid btn--sm"
-            onClick={() => switchTo(input.trim())}
+            onClick={() => load(input.trim())}
             disabled={busy || !input.trim()}
           >
-            打开此路径
+            载入此路径
           </button>
           <button
             type="button"
@@ -130,7 +132,7 @@ export default function ProjectBar({ onSwitchProject }) {
             取消
           </button>
           <p className="project-bar__tip">
-            这个文件夹里的 project.json 存人物卡 / 场景卡 / 技法卡；空文件夹会被当成新项目。打开过就记住，下次启动自动接着开。
+            载入后，界面里的改动会自动写回这个文件，写之前备份到同目录的 _novelui-backups，留最近 10 份。
           </p>
         </div>
       )}

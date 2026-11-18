@@ -36,33 +36,35 @@ struct ProjectMeta {
     slug: Option<String>,
 }
 
-/// 作品根目录：<文档>/NovelUI/<slug>
-///
-/// 也支持「项目 = 任意文件夹」：current-project.txt 里存的是绝对路径时，直接用那个文件夹。
-fn project_dir(app: &AppHandle) -> Result<PathBuf, String> {
+/// 数据文件：默认 <文档>/NovelUI/default/project.json。
+/// 「载入数据」后 last-file.txt 里记着那个 json 的绝对路径，之后所有读写都走它。
+fn state_file(app: &AppHandle) -> Result<PathBuf, String> {
     let documents = app
         .path()
         .document_dir()
         .map_err(|error| format!("找不到文档目录：{error}"))?;
 
-    let slug_file = documents.join(APP_DIR).join("current-project.txt");
-    let saved = fs::read_to_string(&slug_file)
+    let record = documents.join(APP_DIR).join("last-file.txt");
+    let saved = fs::read_to_string(&record)
         .ok()
         .map(|text| text.trim().to_string())
         .filter(|text| !text.is_empty());
 
-    let dir = match saved {
+    let file = match saved {
         Some(text) if Path::new(&text).is_absolute() => PathBuf::from(text),
-        Some(text) => documents.join(APP_DIR).join(text),
-        None => documents.join(APP_DIR).join("default"),
+        _ => documents.join(APP_DIR).join("default").join("project.json"),
     };
-    fs::create_dir_all(dir.join("backups")).map_err(|error| error.to_string())?;
-    fs::create_dir_all(dir.join("exports")).map_err(|error| error.to_string())?;
-    Ok(dir)
+
+    if let Some(parent) = file.parent() {
+        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    }
+    Ok(file)
 }
 
-fn state_file(dir: &Path) -> PathBuf {
-    dir.join("project.json")
+/// 数据文件旁边的备份目录：<同目录>/_novelui-backups
+fn backup_dir(file: &Path) -> PathBuf {
+    let parent = file.parent().map(Path::to_path_buf).unwrap_or_default();
+    parent.join("_novelui-backups")
 }
 
 fn now_millis() -> u128 {
@@ -72,15 +74,20 @@ fn now_millis() -> u128 {
         .unwrap_or(0)
 }
 
-/// 写之前先把旧文件挪进 backups/，只保留最近 BACKUP_KEEP 份
-fn rotate_backup(dir: &Path) -> Result<(), String> {
-    let current = state_file(dir);
-    if !current.exists() {
+/// 写之前先把旧文件备份到同目录 _novelui-backups，只保留最近 BACKUP_KEEP 份
+fn rotate_backup(file: &Path) -> Result<(), String> {
+    if !file.exists() {
         return Ok(());
     }
-    let backups = dir.join("backups");
-    let target = backups.join(format!("project-{}.json", now_millis()));
-    fs::copy(&current, &target).map_err(|error| error.to_string())?;
+    let backups = backup_dir(file);
+    fs::create_dir_all(&backups).map_err(|error| error.to_string())?;
+    let base = file
+        .file_stem()
+        .and_then(|name| name.to_str())
+        .unwrap_or("project")
+        .to_string();
+    let target = backups.join(format!("{}-{}.json", base, now_millis()));
+    fs::copy(file, &target).map_err(|error| error.to_string())?;
 
     let mut entries: Vec<PathBuf> = fs::read_dir(&backups)
         .map_err(|error| error.to_string())?
@@ -90,7 +97,7 @@ fn rotate_backup(dir: &Path) -> Result<(), String> {
                 && path
                     .file_name()
                     .and_then(|name| name.to_str())
-                    .map(|name| name.starts_with("project-"))
+                    .map(|name| name.starts_with(&format!("{base}-")))
                     .unwrap_or(false)
         })
         .collect();
@@ -109,14 +116,12 @@ fn rotate_backup(dir: &Path) -> Result<(), String> {
 
 #[tauri::command]
 fn novel_state_path(app: AppHandle) -> Result<String, String> {
-    let dir = project_dir(&app)?;
-    Ok(state_file(&dir).to_string_lossy().to_string())
+    Ok(state_file(&app)?.to_string_lossy().to_string())
 }
 
 #[tauri::command]
 fn novel_load_state(app: AppHandle) -> Result<Option<LoadResult>, String> {
-    let dir = project_dir(&app)?;
-    let file = state_file(&dir);
+    let file = state_file(&app)?;
     if !file.exists() {
         return Ok(None);
     }
@@ -138,12 +143,11 @@ fn novel_load_state(app: AppHandle) -> Result<Option<LoadResult>, String> {
 
 #[tauri::command]
 fn novel_save_state(app: AppHandle, data: serde_json::Value) -> Result<SaveResult, String> {
-    let dir = project_dir(&app)?;
-    rotate_backup(&dir)?;
+    let file = state_file(&app)?;
+    rotate_backup(&file)?;
 
-    let file = state_file(&dir);
     // 先写临时文件再改名，避免写到一半断电把主文件写坏
-    let temp = dir.join("project.json.tmp");
+    let temp = file.with_extension("json.tmp");
     let text = serde_json::to_string_pretty(&data).map_err(|error| error.to_string())?;
     fs::write(&temp, text).map_err(|error| error.to_string())?;
     fs::rename(&temp, &file).map_err(|error| error.to_string())?;
@@ -156,13 +160,17 @@ fn novel_save_state(app: AppHandle, data: serde_json::Value) -> Result<SaveResul
 
 #[tauri::command]
 fn novel_export_file(app: AppHandle, payload: serde_json::Value) -> Result<Option<String>, String> {
-    let dir = project_dir(&app)?;
-    let file = dir.join("exports").join(format!("novel-{}.json", now_millis()));
+    let file = state_file(&app)?;
+    let parent = file.parent().map(Path::to_path_buf).unwrap_or_default();
+    let dir = parent.join("_novelui-exports");
+    fs::create_dir_all(&dir).map_err(|error| error.to_string())?;
+    let target = dir.join(format!("novel-{}.json", now_millis()));
     let text = serde_json::to_string_pretty(&payload).map_err(|error| error.to_string())?;
-    fs::write(&file, text).map_err(|error| error.to_string())?;
-    Ok(Some(file.to_string_lossy().to_string()))
+    fs::write(&target, text).map_err(|error| error.to_string())?;
+    Ok(Some(target.to_string_lossy().to_string()))
 }
 
+/// 从对话框里挑一个 json 读进来（只是导入，不改变当前数据文件）
 #[tauri::command]
 fn novel_pick_project(app: AppHandle) -> Result<Option<LoadResult>, String> {
     let picked = app
@@ -186,18 +194,67 @@ fn novel_pick_project(app: AppHandle) -> Result<Option<LoadResult>, String> {
     }))
 }
 
-/// 当前作品名（默认 default），供界面显示
+/// 当前数据文件名（给界面显示）
 #[tauri::command]
 fn novel_project_slug(app: AppHandle) -> Result<String, String> {
-    let dir = project_dir(&app)?;
-    Ok(dir
+    let file = state_file(&app)?;
+    Ok(file
         .file_name()
         .and_then(|name| name.to_str())
-        .unwrap_or("default")
+        .unwrap_or("project.json")
         .to_string())
 }
 
-/// 切换作品：写 current-project.txt，下次读写就走新目录
+/// 把任何一个 json 设成当前数据文件：之后所有读写都落到它上面
+fn adopt_data_file(app: &AppHandle, path: &Path) -> Result<LoadResult, String> {
+    let text = fs::read_to_string(path).map_err(|error| error.to_string())?;
+    let parsed: serde_json::Value = serde_json::from_str(&text).map_err(|error| error.to_string())?;
+    let data = match parsed.get("data") {
+        Some(inner) if inner.is_object() => inner.clone(),
+        _ => parsed,
+    };
+
+    let documents = app
+        .path()
+        .document_dir()
+        .map_err(|error| format!("找不到文档目录：{error}"))?;
+    let root = documents.join(APP_DIR);
+    fs::create_dir_all(&root).map_err(|error| error.to_string())?;
+    fs::write(root.join("last-file.txt"), path.to_string_lossy().as_bytes())
+        .map_err(|error| error.to_string())?;
+
+    Ok(LoadResult {
+        data,
+        path: path.to_string_lossy().to_string(),
+        updated_at: 0,
+    })
+}
+
+#[tauri::command]
+fn novel_pick_data_file(app: AppHandle) -> Result<Option<LoadResult>, String> {
+    let picked = app
+        .dialog()
+        .file()
+        .add_filter("小说数据", &["json"])
+        .blocking_pick_file();
+
+    let Some(picked) = picked else { return Ok(None) };
+    let path = picked
+        .into_path()
+        .map_err(|error| format!("无法读取所选路径：{error}"))?;
+    Ok(Some(adopt_data_file(&app, &path)?))
+}
+
+#[tauri::command]
+fn novel_open_data_file(app: AppHandle, path: String) -> Result<LoadResult, String> {
+    let target = PathBuf::from(path.trim());
+    if !target.is_absolute() {
+        return Err("请给一个绝对路径".to_string());
+    }
+    adopt_data_file(&app, &target)
+}
+
+/// 切换到内置作品目录：<文档>/NovelUI/<名字>/project.json（等价于载入那个文件）
 #[tauri::command]
 fn novel_switch_project(app: AppHandle, slug: String) -> Result<String, String> {
     let cleaned: String = slug
@@ -216,10 +273,12 @@ fn novel_switch_project(app: AppHandle, slug: String) -> Result<String, String> 
         .map_err(|error| format!("找不到文档目录：{error}"))?;
     let root = documents.join(APP_DIR);
     fs::create_dir_all(&root).map_err(|error| error.to_string())?;
-    fs::write(root.join("current-project.txt"), &name).map_err(|error| error.to_string())?;
-    let dir = root.join(&name);
-    fs::create_dir_all(dir.join("backups")).map_err(|error| error.to_string())?;
-    fs::create_dir_all(dir.join("exports")).map_err(|error| error.to_string())?;
+    let file = root.join(&name).join("project.json");
+    if let Some(parent) = file.parent() {
+        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    }
+    fs::write(root.join("last-file.txt"), file.to_string_lossy().as_bytes())
+        .map_err(|error| error.to_string())?;
     Ok(name)
 }
 
@@ -299,69 +358,8 @@ fn novel_save_library(app: AppHandle, data: serde_json::Value) -> Result<SaveRes
     })
 }
 
-#[derive(Debug, Serialize)]
-struct ProjectDirResult {
-    dir: String,
-    cancelled: bool,
-}
-
-impl ProjectDirResult {
-    fn cancelled() -> Self {
-        Self {
-            dir: String::new(),
-            cancelled: true,
-        }
-    }
-}
-
-/// 记住项目文件夹（存绝对路径，下次启动接着打开）
-fn remember_project(app: &AppHandle, dir: &Path) -> Result<(), String> {
-    let documents = app
-        .path()
-        .document_dir()
-        .map_err(|error| format!("找不到文档目录：{error}"))?;
-    let root = documents.join(APP_DIR);
-    fs::create_dir_all(&root).map_err(|error| error.to_string())?;
-    fs::write(root.join("current-project.txt"), dir.to_string_lossy().as_bytes())
-        .map_err(|error| error.to_string())
-}
-
-/// 弹原生文件夹选择框，选中后存成当前项目
-#[tauri::command]
-async fn novel_pick_folder(app: AppHandle) -> Result<ProjectDirResult, String> {
-    let picked = app.dialog().file().blocking_pick_folder();
-    let Some(folder) = picked else {
-        return Ok(ProjectDirResult::cancelled());
-    };
-    let path = folder
-        .into_path()
-        .map_err(|error| format!("选的文件夹不可用：{error}"))?;
-    fs::create_dir_all(path.join("backups")).map_err(|error| error.to_string())?;
-    fs::create_dir_all(path.join("exports")).map_err(|error| error.to_string())?;
-    remember_project(&app, &path)?;
-    Ok(ProjectDirResult {
-        dir: path.to_string_lossy().to_string(),
-        cancelled: false,
-    })
-}
-
-/// 直接指定项目文件夹（UI 里手填路径时用）
-#[tauri::command]
-fn novel_open_project(app: AppHandle, dir: String) -> Result<ProjectDirResult, String> {
-    let path = PathBuf::from(dir.trim());
-    if !path.is_absolute() {
-        return Err("请给一个绝对路径".to_string());
-    }
-    fs::create_dir_all(path.join("backups")).map_err(|error| error.to_string())?;
-    fs::create_dir_all(path.join("exports")).map_err(|error| error.to_string())?;
-    remember_project(&app, &path)?;
-    Ok(ProjectDirResult {
-        dir: path.to_string_lossy().to_string(),
-        cancelled: false,
-    })
-}
-
-fn main() {
+#[allow(dead_code)]
+fn _unused(_: ProjectMeta) {}
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
@@ -374,8 +372,8 @@ fn main() {
             novel_switch_project,
             novel_load_library,
             novel_save_library,
-            novel_pick_folder,
-            novel_open_project
+            novel_pick_data_file,
+            novel_open_data_file
         ])
         .run(tauri::generate_context!())
         .expect("启动客户端失败");

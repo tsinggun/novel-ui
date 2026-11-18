@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import NavTabs from './components/NavTabs'
 import FontScaleControl from './components/FontScaleControl'
-import ProjectBar from './components/ProjectBar'
+import DataBar from './components/DataBar'
 import BuilderPage from './pages/BuilderPage'
 import CharacterPage from './pages/CharacterPage'
 import ScenePage from './pages/ScenePage'
@@ -22,7 +22,7 @@ function App() {
     <div className="app">
       <NavTabs value={tab} onChange={setTab} showLibrary={library.available} />
       <div className="app__toolbar">
-        <ProjectBar onSwitchProject={() => novel.reload()} />
+        <DataBar onLoadData={(data) => novel.applyLoaded(data)} />
         <FontScaleControl scale={scale} step={step} reset={reset} />
       </div>
 

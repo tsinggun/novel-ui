@@ -121,6 +121,13 @@ export function useNovelData() {
     setEpoch((value) => value + 1)
   }, [])
 
+  /** 「载入数据」：直接把选中的 json 内容铺进来（文件已经由存储层切成它，后续改动写回它） */
+  const applyLoaded = useCallback((raw) => {
+    freshRef.current = false
+    setData(normalize(raw))
+    setLoaded(true)
+  }, [])
+
   /* 数据变化 → 落本地文件；磁盘写不了才退回 localStorage */
   useEffect(() => {
     if (!loaded) return
@@ -398,6 +405,7 @@ export function useNovelData() {
     data,
     loaded,
     reload,
+    applyLoaded,
     saveCharacter,
     saveScene,
     saveTechnique,

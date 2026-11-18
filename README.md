@@ -140,18 +140,25 @@ novel_export_file({ payload })  -> { path } | null
 novel_pick_project()            -> { path, data } | null
 novel_project_slug()            -> String
 novel_switch_project({ slug })  -> String
+novel_pick_data_file()          -> { path, data } | null   载入数据（对话框）
+novel_open_data_file({ path })  -> { path, data }          载入数据（指定路径）
 ```
 
-目录式作品存储布局（客户端与便携版共用）：
+## 数据文件模型（客户端）
+
+「数据 = 一个 json 文件」：点顶部「载入数据」选一个 json，里面的卡片装进界面；之后客户端里的所有改动都**写回这个文件**。
 
 ```text
-<文档>/NovelUI/
-  current-project.txt           # 当前作品名（默认 default）
-  <作品>/
-    project.json                # 卡片库 + 构造器状态
-    backups/project-<时间>.json # 自动备份，保留最近 10 份
-    exports/*.json              # 手动导出
+<你选的目录>/
+  my-book.json              # 或 project.json，你自己起名，里面是完整状态
+<同目录>/_novelui-backups/  # 每次写盘前备份，保留最近 10 份
+<同目录>/_novelui-exports/  # 「导出」按钮落这里
 ```
+
+默认（还没载入过任何文件时）：`%USERPROFILE%\Documents\NovelUI\default\project.json`，最后由 `Documents\NovelUI\last-file.txt` 记住上次用的那个文件。
+
+- 载入失败的常见原因：不是 json、或者是个数组
+- 网页版没有这条，网页版的「导入」只读进来不写回
 
 ## 客户端（两种形态）
 
@@ -165,11 +172,12 @@ npm run client:build    # 只构建
 npm run client:run      # 只起服务（dist 已构建过）
 ```
 
-原理是 `client/server.mjs`：本机随机端口起静态服务 + 复刻 `/plot-api` 接口（数据落 `<文档>/NovelUI/<作品>/`），再用 `msedge --app=` 开一个无地址栏窗口，关窗即退出进程。窗口用独立 profile（`NovelUI/.window-profile`），不干扰你日常的 Edge。
+原理是 `client/server.mjs`：本机固定端口 23871 起静态服务 + 复刻 `/plot-api` 接口（数据写回你载入的那个 json），再用 Chrome/Edge 的 `--app=` 开一个无地址栏窗口；已有窗口在跑时不会重复启动。窗口用独立 profile（`NovelUI/.window-profile`），不干扰你日常的浏览器。
 
-- 数据位置：`%USERPROFILE%\Documents\NovelUI\default\project.json`
-- 备份：每次写盘前先把旧文件拷进 `backups/`，只留最近 10 份
-- 换作品：设环境变量 `NOVEL_PROJECT=我的长篇` 再启动
+- 默认数据文件：`%USERPROFILE%\Documents\NovelUI\default\project.json`
+- 备份：每次写盘前先把旧文件拷进同目录 `_novelui-backups/`，只留最近 10 份
+- 换文件：顶部「载入数据」手填路径或浏览，也可以 `NOVEL_FILE=D:\x\y.json` 启动
+- 单实例：再次双击启动器时，如果服务+窗口都在，只会提示一句然后退出
 
 ### 2. Tauri 打包版（需要 C++ 工具链）
 

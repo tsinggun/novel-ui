@@ -37,9 +37,7 @@ export default function CharacterPage({ novel }) {
         </div>
         <div className="page__actions">
           {pasteNotice && <span className="tool-hint">{pasteNotice}</span>}
-          <button type="button" className="btn" onClick={() => setPasteOpen(true)}>
-            粘贴导入
-          </button>
+          <button type="button" className="btn" onClick={() => setPasteOpen(true)}>导入卡片</button>
           <button type="button" className="btn btn--solid" onClick={startCreate}>
             添加人物
           </button>
@@ -113,18 +111,18 @@ export default function CharacterPage({ novel }) {
         onPasteImport={(items) => {
           const result = novel.importEntities('characters', items)
           setDraft(null)
-          setPasteNotice(`已粘贴导入 ${result.added} 张人物卡${result.skipped ? `，跳过重名 ${result.skipped} 张` : ''}`)
+          setPasteNotice(`已导入 ${result.added} 张人物卡${result.skipped ? `，跳过重名 ${result.skipped} 张` : ''}`)
         }}
       />
 
       <PasteImportModal
         open={pasteOpen}
-        title="粘贴导入人物卡"
-        hint="一段对象或对象数组都行；追加进卡库，重名跳过。"
+        title="导入人物卡"
+        hint="粘 JSON 或选 .json 文件；追加进卡库，重名跳过。"
         example={'{\n  "name": "林见月",\n  "detail": "出身、性格、执念……"\n}'}
         onImport={(items) => {
           const result = novel.importEntities('characters', items)
-          setPasteNotice(`已粘贴导入 ${result.added} 张人物卡${result.skipped ? `，跳过重名 ${result.skipped} 张` : ''}`)
+          setPasteNotice(`已导入 ${result.added} 张人物卡${result.skipped ? `，跳过重名 ${result.skipped} 张` : ''}`)
           if (result.added > 0) setPasteOpen(false)
           return result
         }}

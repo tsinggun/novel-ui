@@ -37,9 +37,7 @@ export default function ScenePage({ novel }) {
         </div>
         <div className="page__actions">
           {pasteNotice && <span className="tool-hint">{pasteNotice}</span>}
-          <button type="button" className="btn" onClick={() => setPasteOpen(true)}>
-            粘贴导入
-          </button>
+          <button type="button" className="btn" onClick={() => setPasteOpen(true)}>导入卡片</button>
           <button type="button" className="btn btn--solid" onClick={startCreate}>
             添加场景卡
           </button>
@@ -113,18 +111,18 @@ export default function ScenePage({ novel }) {
         onPasteImport={(items) => {
           const result = novel.importEntities('scenes', items)
           setDraft(null)
-          setPasteNotice(`已粘贴导入 ${result.added} 张场景卡${result.skipped ? `，跳过重名 ${result.skipped} 张` : ''}`)
+          setPasteNotice(`已导入 ${result.added} 张场景卡${result.skipped ? `，跳过重名 ${result.skipped} 张` : ''}`)
         }}
       />
 
       <PasteImportModal
         open={pasteOpen}
-        title="粘贴导入场景卡"
-        hint="一段对象或对象数组都行；追加进卡库，重名跳过。"
+        title="导入场景卡"
+        hint="粘 JSON 或选 .json 文件；追加进卡库，重名跳过。"
         example={'{\n  "name": "雨夜旧书店",\n  "detail": "时间、地点、氛围……"\n}'}
         onImport={(items) => {
           const result = novel.importEntities('scenes', items)
-          setPasteNotice(`已粘贴导入 ${result.added} 张场景卡${result.skipped ? `，跳过重名 ${result.skipped} 张` : ''}`)
+          setPasteNotice(`已导入 ${result.added} 张场景卡${result.skipped ? `，跳过重名 ${result.skipped} 张` : ''}`)
           if (result.added > 0) setPasteOpen(false)
           return result
         }}

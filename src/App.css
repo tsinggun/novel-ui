@@ -452,6 +452,25 @@
   height: 30px;
 }
 
+/* 导入弹窗：标题行 + 选文件按钮 */
+.import-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.import-bar .field__label {
+  margin: 0;
+}
+
+/* 拖文件进来时高亮这个框 */
+.detail__editor.is-dragging {
+  border-color: #d8d8d8;
+  background: #1c1c1c;
+}
+
 .page__title {
   margin: 0;
   font-size: calc(19px * var(--fs));

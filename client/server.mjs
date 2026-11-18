@@ -175,6 +175,7 @@ if (!existsSync(path.join(distDir, 'index.html'))) {
 }
 
 const server = createServer(async (req, res) => {
+  lastActiveAt = Date.now()
   const url = new URL(req.url || '/', 'http://127.0.0.1')
   if (url.pathname === '/plot-api/state') return handleState(req, res)
   if (url.pathname === '/plot-api/export') return handleExport(req, res)
@@ -183,6 +184,17 @@ const server = createServer(async (req, res) => {
   }
   return serveStatic(req, res, url)
 })
+
+// 窗口关掉后拿不到任何通知，就靠空闲超时退出，避免留个后台进程
+let lastActiveAt = Date.now()
+const IDLE_LIMIT = 30 * 60 * 1000
+setInterval(() => {
+  if (Date.now() - lastActiveAt > IDLE_LIMIT) {
+    console.log('  30 分钟没有访问，客户端自动退出。')
+    server.close()
+    process.exit(0)
+  }
+}, 60 * 1000).unref()
 
 const EDGE_CANDIDATES = [
   path.join(process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)', 'Microsoft\\Edge\\Application\\msedge.exe'),
@@ -213,6 +225,7 @@ server.listen(0, '127.0.0.1', async () => {
     edge,
     [
       `--app=${targetUrl}`,
+      '--new-window',
       '--window-size=1360,900',
       `--user-data-dir=${profileDir}`,
       '--no-first-run',
@@ -225,12 +238,16 @@ server.listen(0, '127.0.0.1', async () => {
       '--no-service-autorun',
       '--no-experimental-drop-shadow',
     ],
-    { stdio: 'ignore' },
+    { stdio: 'ignore', detached: false },
   )
 
-  child.on('exit', () => {
-    console.log('窗口已关闭，退出客户端。')
-    server.close()
-    process.exit(0)
+  // msedge.exe 只是启动器：窗口交给正在运行的 Edge 主进程后它自己就退出了。
+  // 所以这里不能跟着它退出，否则服务一关窗口立刻变成「无法访问此网站」。
+  child.on('exit', (code) => {
+    console.log(`  已调用 Edge 打开窗口（启动器退出码 ${code ?? 0}），服务继续运行。`)
+  })
+  child.on('error', (error) => {
+    console.log(`  Edge 启动失败：${error.message}，改用默认浏览器`)
+    spawn('cmd', ['/c', 'start', '', targetUrl], { detached: true, stdio: 'ignore' }).unref()
   })
 })

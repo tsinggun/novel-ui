@@ -496,7 +496,9 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(248px, 1fr));
   gap: 12px;
-  align-items: start;
+  /* 同一行卡片等高：卡片里 .card__actions 是 margin-top:auto，
+     高度一致时按钮才会落在同一条线上，不会一高一低。 */
+  align-items: stretch;
 }
 
 /* ---------- 按钮 ---------- */

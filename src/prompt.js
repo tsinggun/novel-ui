@@ -19,10 +19,11 @@ export function buildPrompt({
   // 情节实际用到的技法（去重，保持首次出现顺序）
   const usedTechniques = []
   plots.forEach((plot) => {
-    const techId = (plot.techniqueIds || [])[0]
-    if (!techId) return
-    const tech = techniques.find((item) => item.id === techId)
-    if (tech && !usedTechniques.some((item) => item.id === tech.id)) usedTechniques.push(tech)
+    ;(plot.techniqueIds || []).forEach((techId) => {
+      if (!techId) return
+      const tech = techniques.find((item) => item.id === techId)
+      if (tech && !usedTechniques.some((item) => item.id === tech.id)) usedTechniques.push(tech)
+    })
   })
 
   const lines = []
@@ -72,15 +73,19 @@ export function buildPrompt({
   if (plots.length > 0) {
     lines.push('【情节卡】')
     plots.forEach((plot, index) => {
-      const techId = (plot.techniqueIds || [])[0]
-      const tech = techId ? techniques.find((item) => item.id === techId) : null
+      const techList = (plot.techniqueIds || [])
+        .map((id) => techniques.find((item) => item.id === id))
+        .filter(Boolean)
 
       lines.push(`${index + 1}. ${plot.content}`)
 
       // 情节和它的写作要求（字数 + 技法名）放在同一个块里
       const requirements = []
       if (plot.wordCount > 0) requirements.push(`约 ${plot.wordCount} 字`)
-      if (tech) requirements.push(`用「${tech.name}」来写`)
+      if (techList.length === 1) requirements.push(`用「${techList[0].name}」来写`)
+      else if (techList.length > 1) {
+        requirements.push(`同时用${techList.map((tech) => `「${tech.name}」`).join('、')}来写`)
+      }
 
       if (requirements.length > 0) {
         lines.push(`   写作要求：${requirements.join('；')}。`)

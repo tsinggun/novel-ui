@@ -1,14 +1,14 @@
 import { useState } from 'react'
 
 /**
- * 情节里勾选技法的小组件（单选）：点新的替换旧的，点已选的取消。
+ * 情节里勾选技法的小组件（多选）：点一下选中，再点取消。
  * 上方搜索框可按技法名称或标签筛选，下面列出可选技法。
  */
 export default function TechniquePicker({
   techniques = [],
-  selectedId,
-  onSelect,
-  label = '使用技法 · 选一个',
+  selectedIds = [],
+  onToggle,
+  label = '使用技法 · 可多选',
   onNavigate,
   id,
 }) {
@@ -51,7 +51,7 @@ export default function TechniquePicker({
           ) : (
             <ul className="tech-picker__list">
               {filtered.map((tech) => {
-                const active = selectedId === tech.id
+                const active = selectedIds.includes(tech.id)
                 return (
                   <li key={tech.id}>
                     <button
@@ -60,7 +60,7 @@ export default function TechniquePicker({
                       aria-pressed={active}
                       aria-label={tech.name}
                       title={tech.detail || tech.name}
-                      onClick={() => onSelect(active ? null : tech.id)}
+                      onClick={() => onToggle(tech.id)}
                     >
                       {tech.name}
                     </button>

@@ -6,10 +6,19 @@ import TechniquePicker from '../components/TechniquePicker'
 import { buildPrompt, DEFAULT_PROMPT_INTRO } from '../prompt'
 import { exportToDisk } from '../persist'
 
-const emptyPlotDraft = { content: '', wordCount: '', techniqueId: null }
+const emptyPlotDraft = { content: '', wordCount: '', techniqueIds: [] }
+
+/** 构造器内部的分区 tab：前情提要 / 场景 / 人物 / 情节，一次只展开一块 */
+const SECTIONS = [
+  { id: 'recap', label: '前情提要' },
+  { id: 'scene', label: '场景' },
+  { id: 'character', label: '人物' },
+  { id: 'plot', label: '情节' },
+]
 
 export default function BuilderPage({ novel, onNavigate }) {
   const { data } = novel
+  const [section, setSection] = useState('recap')
   const [plotDraft, setPlotDraft] = useState(emptyPlotDraft)
   const [plotHint, setPlotHint] = useState('')
   const [plotDialogOpen, setPlotDialogOpen] = useState(false)
@@ -51,13 +60,15 @@ export default function BuilderPage({ novel, onNavigate }) {
   const handleAddPlot = () => {
     if (!plotDraft.content.trim()) {
       setPlotHint('请先填写「情节内容」，再保存。')
-      document.getElementById('plot-dialog-content')?.focus()
+      if (!window.__NOVEL_UI_FOCUS__?.('plot-dialog-content')) {
+        document.getElementById('plot-dialog-content')?.focus()
+      }
       return
     }
     novel.addPlot({
       content: plotDraft.content,
       wordCount: plotDraft.wordCount,
-      techniqueIds: plotDraft.techniqueId ? [plotDraft.techniqueId] : [],
+      techniqueIds: plotDraft.techniqueIds,
     })
     setPlotDraft(emptyPlotDraft)
     setPlotHint('')
@@ -69,7 +80,7 @@ export default function BuilderPage({ novel, onNavigate }) {
       id: plot.id,
       content: plot.content,
       wordCount: plot.wordCount ? String(plot.wordCount) : '',
-      techniqueId: (plot.techniqueIds || [])[0] || null,
+      techniqueIds: [...(plot.techniqueIds || [])],
     })
   }
 
@@ -79,7 +90,7 @@ export default function BuilderPage({ novel, onNavigate }) {
     novel.updatePlot(editingPlot.id, {
       content: editingPlot.content,
       wordCount: editingPlot.wordCount,
-      techniqueId: editingPlot.techniqueId,
+      techniqueIds: editingPlot.techniqueIds,
     })
     setEditingPlot(null)
   }
@@ -148,17 +159,6 @@ export default function BuilderPage({ novel, onNavigate }) {
           <p className="page__hint">把已加入的人物、场景与情节，组织成这一章的骨架。</p>
         </div>
         <div className="page__tools">
-          <div className="page__stats">
-            <span className="stat">
-              人物 <b>{characterItems.length}</b>
-            </span>
-            <span className="stat">
-              场景 <b>{sceneItems.length}</b>
-            </span>
-            <span className="stat">
-              情节 <b>{data.plots.length}</b>
-            </span>
-          </div>
           <button type="button" className="btn btn--sm" onClick={() => setPreviewOpen(true)}>
             提示词预览
           </button>
@@ -191,7 +191,38 @@ export default function BuilderPage({ novel, onNavigate }) {
         </div>
       </header>
 
-      <Card title="前情提要" meta="可选" className="card--frame">
+      <div className="builder-tabs" role="tablist" aria-label="构造器分区">
+        {SECTIONS.map((item) => {
+          const count =
+            item.id === 'recap'
+              ? (data.previousRecap || '').length
+              : item.id === 'scene'
+                ? sceneItems.length
+                : item.id === 'character'
+                  ? characterItems.length
+                  : data.plots.length
+          const unit = item.id === 'recap' ? '字' : item.id === 'plot' ? '条' : item.id === 'scene' ? '景' : '位'
+          return (
+            <button
+              key={item.id}
+              type="button"
+              role="tab"
+              aria-selected={section === item.id}
+              className={`builder-tabs__item${section === item.id ? ' is-active' : ''}`}
+              onClick={() => setSection(item.id)}
+            >
+              <span className="builder-tabs__label">{item.label}</span>
+              <span className="builder-tabs__count">
+                {count}
+                {unit}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+
+      {section === 'recap' && (
+        <Card title="前情提要" meta="可选" className="card--frame">
         <label className="label" htmlFor="previous-recap">
           上一章结尾 / 必要前情
         </label>
@@ -203,14 +234,16 @@ export default function BuilderPage({ novel, onNavigate }) {
           onChange={(event) => novel.setPreviousRecap(event.target.value)}
         />
         <span className="card__hint">建议 100–300 字：只写必要前情，太长会挤占正文的上下文</span>
-      </Card>
+        </Card>
+      )}
 
-      <Card
-        title="场景卡"
-        meta={`${sceneItems.length} / ${data.scenes.length}`}
-        className="card--frame card--clickable"
-        onClick={cardClickGuard(() => setSceneOpen(true))}
-      >
+      {section === 'scene' && (
+        <Card
+          title="场景卡"
+          meta={`${sceneItems.length} / ${data.scenes.length}`}
+          className="card--frame card--clickable"
+          onClick={cardClickGuard(() => setSceneOpen(true))}
+        >
         <div className="field field--lg">
           <span className="field__label">已加入的场景</span>
           {sceneItems.length > 0 ? (
@@ -251,7 +284,8 @@ export default function BuilderPage({ novel, onNavigate }) {
           onChange={(event) => novel.setNote('scene', event.target.value)}
         />
         <span className="card__hint">点击卡片展开查看与编辑</span>
-      </Card>
+        </Card>
+      )}
 
       <DetailModal
         open={sceneOpen}
@@ -287,57 +321,65 @@ export default function BuilderPage({ novel, onNavigate }) {
         </div>
       </DetailModal>
 
-      <div className="section-head">
-        <h3 className="section-head__title">人物卡</h3>
-        <span className="section-head__meta">
-          {characterItems.length} / {data.characters.length} 位
-        </span>
-      </div>
+      {section === 'character' && (
+        <>
+          <div className="section-head">
+            <h3 className="section-head__title">人物卡</h3>
+            <span className="section-head__meta">
+              {characterItems.length} / {data.characters.length} 位
+            </span>
+          </div>
 
-      {characterItems.length === 0 && (
-        <Card className="card--empty">
-          <p className="empty">
-            还没有人物卡加入。
-            <button type="button" className="btn btn--link" onClick={() => onNavigate('character')}>
-              去人物卡页添加
-            </button>
-          </p>
-        </Card>
-      )}
+          {characterItems.length === 0 && (
+            <Card className="card--empty">
+              <p className="empty">
+                还没有人物卡加入。
+                <button
+                  type="button"
+                  className="btn btn--link"
+                  onClick={() => onNavigate('character')}
+                >
+                  去人物卡页添加
+                </button>
+              </p>
+            </Card>
+          )}
 
-      <div className="character-stack">
-        {characterItems.map((item) => (
-          <Card
-            key={item.id}
-            title={item.name}
-            tag="人物"
-            meta={data.characterNotes[item.id]?.trim() ? '已写备注' : undefined}
-            className="card--frame card--clickable"
-            onClick={cardClickGuard(() => setOpenCharacterId(item.id))}
-            actions={
-              <button
-                type="button"
-                className="btn btn--ghost btn--sm"
-                onClick={() => novel.toggleInBuilder('characters', item.id)}
+          <div className="character-stack">
+            {characterItems.map((item) => (
+              <Card
+                key={item.id}
+                title={item.name}
+                tag="人物"
+                meta={data.characterNotes[item.id]?.trim() ? '已写备注' : undefined}
+                className="card--frame card--clickable"
+                onClick={cardClickGuard(() => setOpenCharacterId(item.id))}
+                actions={
+                  <button
+                    type="button"
+                    className="btn btn--ghost btn--sm"
+                    onClick={() => novel.toggleInBuilder('characters', item.id)}
+                  >
+                    移出构建器
+                  </button>
+                }
               >
-                移出构建器
-              </button>
-            }
-          >
-            <label className="label" htmlFor={`character-note-${item.id}`}>
-              本章备注 · 衣服 / 心情 / 状态
-            </label>
-            <textarea
-              id={`character-note-${item.id}`}
-              className="input input--area"
-              placeholder="这一章他穿什么、情绪如何、和谁的关系有变化、要埋伏笔的地方……"
-              value={data.characterNotes[item.id] || ''}
-              onChange={(event) => novel.setCharacterNote(item.id, event.target.value)}
-            />
-            <span className="card__hint">点击卡片展开查看与编辑</span>
-          </Card>
-        ))}
-      </div>
+                <label className="label" htmlFor={`character-note-${item.id}`}>
+                  本章备注 · 衣服 / 心情 / 状态
+                </label>
+                <textarea
+                  id={`character-note-${item.id}`}
+                  className="input input--area"
+                  placeholder="这一章他穿什么、情绪如何、和谁的关系有变化、要埋伏笔的地方……"
+                  value={data.characterNotes[item.id] || ''}
+                  onChange={(event) => novel.setCharacterNote(item.id, event.target.value)}
+                />
+                <span className="card__hint">点击卡片展开查看与编辑</span>
+              </Card>
+            ))}
+          </div>
+        </>
+      )}
 
       {(() => {
         const openItem = characterItems.find((item) => item.id === openCharacterId)
@@ -386,7 +428,9 @@ export default function BuilderPage({ novel, onNavigate }) {
         )
       })()}
 
-      <Card title="情节卡" meta={`${data.plots.length} 条`} className="card--frame">
+      {section === 'plot' && (
+        <>
+          <Card title="情节卡" meta={`${data.plots.length} 条`} className="card--frame">
         <div className="plot-font">
           <span className="label">情节字号</span>
           <button
@@ -412,9 +456,9 @@ export default function BuilderPage({ novel, onNavigate }) {
         {data.plots.length > 0 && (
           <ul className="plot-list">
             {data.plots.map((plot, index) => {
-              const tech = (plot.techniqueIds || [])
+              const techs = (plot.techniqueIds || [])
                 .map((id) => data.techniques.find((item) => item.id === id))
-                .find(Boolean)
+                .filter(Boolean)
 
               if (editingPlot?.id === plot.id) {
                 return (
@@ -454,8 +498,15 @@ export default function BuilderPage({ novel, onNavigate }) {
 
                     <TechniquePicker
                       techniques={data.techniques}
-                      selectedId={editingPlot.techniqueId}
-                      onSelect={(id) => setEditingPlot((prev) => ({ ...prev, techniqueId: id }))}
+                      selectedIds={editingPlot.techniqueIds}
+                      onToggle={(id) =>
+                        setEditingPlot((prev) => ({
+                          ...prev,
+                          techniqueIds: prev.techniqueIds.includes(id)
+                            ? prev.techniqueIds.filter((item) => item !== id)
+                            : [...prev.techniqueIds, id],
+                        }))
+                      }
                       onNavigate={onNavigate}
                     />
 
@@ -523,9 +574,13 @@ export default function BuilderPage({ novel, onNavigate }) {
                   <p className="plot__content" style={{ fontSize: `calc(${fontSize}px * var(--fs))` }}>
                     {plot.content}
                   </p>
-                  {tech && (
+                  {techs.length > 0 && (
                     <div className="plot__techs">
-                      <span className="plot__tech">{tech.name}</span>
+                      {techs.map((tech) => (
+                        <span key={tech.id} className="plot__tech">
+                          {tech.name}
+                        </span>
+                      ))}
                     </div>
                   )}
                 </li>
@@ -539,18 +594,20 @@ export default function BuilderPage({ novel, onNavigate }) {
         )}
       </Card>
 
-      <div className="builder-footer">
-        <button
-          type="button"
-          className="btn btn--solid btn--wide"
-          onClick={() => {
-            setPlotHint('')
-            setPlotDialogOpen(true)
-          }}
-        >
-          添加情节
-        </button>
-      </div>
+          <div className="builder-footer">
+            <button
+              type="button"
+              className="btn btn--solid btn--wide"
+              onClick={() => {
+                setPlotHint('')
+                setPlotDialogOpen(true)
+              }}
+            >
+              添加情节
+            </button>
+          </div>
+        </>
+      )}
 
       <DetailModal
         open={plotDialogOpen}
@@ -610,8 +667,15 @@ export default function BuilderPage({ novel, onNavigate }) {
 
         <TechniquePicker
           techniques={data.techniques}
-          selectedId={plotDraft.techniqueId}
-          onSelect={(id) => setPlotDraft((prev) => ({ ...prev, techniqueId: id }))}
+          selectedIds={plotDraft.techniqueIds}
+          onToggle={(id) =>
+            setPlotDraft((prev) => ({
+              ...prev,
+              techniqueIds: prev.techniqueIds.includes(id)
+                ? prev.techniqueIds.filter((item) => item !== id)
+                : [...prev.techniqueIds, id],
+            }))
+          }
           onNavigate={onNavigate}
         />
 

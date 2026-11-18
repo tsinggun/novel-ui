@@ -252,10 +252,15 @@ export function useNovelData() {
     }))
   }, [])
 
-  /** 编辑一条情节：内容、字数、技法 */
+  /** 编辑一条情节：内容、字数、技法（技法可多条） */
   const updatePlot = useCallback((id, patch) => {
     const content = (patch.content || '').trim()
     if (!content) return
+    const nextTechniqueIds = Array.isArray(patch.techniqueIds)
+      ? patch.techniqueIds.filter(Boolean)
+      : patch.techniqueId
+        ? [patch.techniqueId]
+        : []
     setData((prev) => ({
       ...prev,
       plots: prev.plots.map((plot) =>
@@ -264,7 +269,7 @@ export function useNovelData() {
               ...plot,
               content,
               wordCount: Math.max(0, Number(patch.wordCount) || 0),
-              techniqueIds: patch.techniqueId ? [patch.techniqueId] : [],
+              techniqueIds: nextTechniqueIds,
             }
           : plot,
       ),

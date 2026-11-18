@@ -59,6 +59,52 @@
   letter-spacing: 0.18em;
 }
 
+/* ---------- 构造器内的分区 tab ---------- */
+
+.builder-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.builder-tabs__item {
+  appearance: none;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 12px;
+  border: 1px solid var(--line-strong);
+  background: #131313;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: calc(12px * var(--fs));
+  letter-spacing: 0.14em;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+
+.builder-tabs__item:hover {
+  border-color: #9d9d9d;
+  color: var(--text);
+}
+
+.builder-tabs__item.is-active {
+  border-color: #f0f0f0;
+  background: #1f1f1f;
+  color: #ffffff;
+}
+
+.builder-tabs__count {
+  font-size: calc(10.5px * var(--fs));
+  letter-spacing: 0.06em;
+  color: var(--text-mute);
+}
+
+.builder-tabs__item.is-active .builder-tabs__count {
+  color: #a8a8a8;
+}
+
 /* ---------- 卡片库检索条 ---------- */
 
 .card-search {

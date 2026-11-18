@@ -8,11 +8,11 @@ const BASE_TABS = [
 const LIBRARY_TAB = { id: 'library', label: '素材库' }
 
 /** showLibrary 只在本地运行（便携版 / 客户端）时为 true，网页版没有这个页 */
-export default function NavTabs({ value, onChange, showLibrary = false }) {
+export default function NavTabs({ value, onChange, showLibrary = false, layout = 'top' }) {
   const tabs = showLibrary ? [...BASE_TABS, LIBRARY_TAB] : BASE_TABS
 
   return (
-    <nav className="nav" aria-label="视图切换">
+    <nav className={`nav nav--${layout}`} aria-label="视图切换">
       {tabs.map((tab, index) => (
         <button
           key={tab.id}

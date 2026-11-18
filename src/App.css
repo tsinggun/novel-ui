@@ -7,12 +7,137 @@
   gap: 18px;
 }
 
+/* ---------- 外壳：顶栏 + 左侧导航 + 工作区 ---------- */
+
+.shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 12;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--line-strong);
+  /* 这里千万别用 backdrop-filter：它会给顶栏造一个独立合成层，
+     设置面板会被画到工作区下面（看不见）。 */
+  background: #0f0f0f;
+}
+
+.topbar__left,
+.topbar__right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.topbar__right {
+  flex: 0 0 auto;
+}
+
+.topbar__btn {
+  white-space: nowrap;
+}
+
+.topbar__settings {
+  position: relative;
+}
+
+.settings {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 20;
+  width: min(320px, 84vw);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--line-strong);
+  background: #141414;
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.6);
+}
+
+.settings__title {
+  font-size: calc(12px * var(--fs));
+  letter-spacing: 0.16em;
+  color: var(--text-dim);
+}
+
+.settings__tip {
+  margin: 0;
+  font-size: calc(11.5px * var(--fs));
+  letter-spacing: 0.04em;
+  color: var(--text-mute);
+}
+
+.shell__body {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: flex-start;
+  min-height: 0;
+}
+
+.sidebar {
+  flex: 0 0 190px;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 12px;
+  border-right: 1px solid var(--line);
+  background: rgba(18, 18, 18, 0.6);
+}
+
+.sidebar__caption {
+  font-size: calc(10.5px * var(--fs));
+  letter-spacing: 0.2em;
+  color: var(--text-mute);
+}
+
+.workspace {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 16px 20px 64px;
+}
+
 /* ---------- 顶部导航 ---------- */
 
 .nav {
+  display: flex;
+  gap: 10px;
+}
+
+.nav--top {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 10px;
+}
+
+.nav--side {
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nav--side .nav__item {
+  justify-content: center;
+}
+
+@media (max-width: 900px) {
+  .sidebar {
+    flex-basis: 150px;
+    padding: 12px 8px;
+  }
+
+  .workspace {
+    padding: 12px 12px 48px;
+  }
 }
 
 .nav__item {

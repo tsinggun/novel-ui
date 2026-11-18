@@ -42,4 +42,6 @@ pack/Launcher/bin
 pack/Launcher/obj
 pack/out
 release
+# 打包时从 src-tauri/icons 复制过来的图标，构建脚本会自动生成
+pack/icon.ico
 

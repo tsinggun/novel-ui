@@ -5,6 +5,7 @@ import DataBar from './components/DataBar'
 import BuilderPage from './pages/BuilderPage'
 import CharacterPage from './pages/CharacterPage'
 import ScenePage from './pages/ScenePage'
+import ItemPage from './pages/ItemPage'
 import TechniquePage from './pages/TechniquePage'
 import { readLocalInfo, migrateToWorkspace } from './persist'
 import { useNovelData } from './useNovelData'
@@ -61,6 +62,7 @@ function App() {
   const usage = {
     character: novel.data.inBuilder.characters.length,
     scene: novel.data.inBuilder.scenes.length,
+    item: novel.data.inBuilder.items.length,
     technique: novel.data.plots.reduce((sum, plot) => sum + (plot.techniqueIds?.length || 0), 0),
   }
 
@@ -188,6 +190,7 @@ function App() {
           )}
           {tab === 'character' && <CharacterPage novel={novel} />}
           {tab === 'scene' && <ScenePage novel={novel} />}
+          {tab === 'item' && <ItemPage novel={novel} />}
           {tab === 'technique' && <TechniquePage novel={novel} />}
         </main>
       </div>

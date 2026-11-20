@@ -13,6 +13,7 @@ const SECTIONS = [
   { id: 'recap', label: '前情提要' },
   { id: 'scene', label: '场景' },
   { id: 'character', label: '人物' },
+  { id: 'item', label: '物品' },
   { id: 'plot', label: '情节' },
 ]
 
@@ -46,6 +47,10 @@ export default function BuilderPage({ novel, onNavigate, previewOpen = false, on
 
   const characterItems = data.inBuilder.characters
     .map((id) => data.characters.find((item) => item.id === id))
+    .filter(Boolean)
+
+  const itemItems = data.inBuilder.items
+    .map((id) => data.items.find((item) => item.id === id))
     .filter(Boolean)
 
   const intro = data.promptIntro ?? DEFAULT_PROMPT_INTRO
@@ -99,6 +104,7 @@ export default function BuilderPage({ novel, onNavigate, previewOpen = false, on
     recap: data.previousRecap || '',
     scenes: sceneItems,
     characters: characterItems,
+    items: itemItems,
     plots: data.plots,
     characterNotes: data.characterNotes,
     sceneNote: data.notes.scene,
@@ -254,8 +260,19 @@ export default function BuilderPage({ novel, onNavigate, previewOpen = false, on
                 ? sceneItems.length
                 : item.id === 'character'
                   ? characterItems.length
-                  : data.plots.length
-          const unit = item.id === 'recap' ? '字' : item.id === 'plot' ? '条' : item.id === 'scene' ? '景' : '位'
+                  : item.id === 'item'
+                    ? itemItems.length
+                    : data.plots.length
+          const unit =
+            item.id === 'recap'
+              ? '字'
+              : item.id === 'plot'
+                ? '条'
+                : item.id === 'scene'
+                  ? '景'
+                  : item.id === 'item'
+                    ? '件'
+                    : '位'
           return (
             <button
               key={item.id}
@@ -393,6 +410,60 @@ export default function BuilderPage({ novel, onNavigate, previewOpen = false, on
         </div>
       </DetailModal>
 
+      {section === 'item' && (
+        <Card title="物品卡" meta={`${itemItems.length} / ${data.items.length}`} className="card--frame">
+          <div className="field field--lg">
+            <span className="field__label">已加入的物品</span>
+            {itemItems.length > 0 ? (
+              <ul className="chip-list">
+                {itemItems.map((item) => {
+                  const isCtx = (data.inContext.items || []).includes(item.id)
+                  return (
+                    <li key={item.id} className={`chip${isCtx ? ' chip--ctx' : ''}`}>
+                      <span className="chip__name">{item.name}</span>
+                      {item.detail && <span className="chip__detail">{item.detail}</span>}
+                      <button
+                        type="button"
+                        className={`chip__ctx${isCtx ? ' is-on' : ''}`}
+                        aria-pressed={isCtx}
+                        title="勾选后提示词里不再贴这段物品描述，只留名字，省 token"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          novel.toggleInContext('items', item.id)
+                        }}
+                      >
+                        {isCtx ? '✓ 已在上下文' : '+ 已在上下文'}
+                      </button>
+                      <button
+                        type="button"
+                        className="chip__remove"
+                        aria-label={`移出 ${item.name}`}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          novel.toggleInBuilder('items', item.id)
+                        }}
+                      >
+                        ×
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            ) : (
+              <p className="empty">
+                还没有物品卡加入。
+                <button type="button" className="btn btn--link" onClick={() => onNavigate('item')}>
+                  去物品卡页添加
+                </button>
+              </p>
+            )}
+          </div>
+          <span className="card__hint">
+            物品卡会写进提示词的【物品卡】段落：名字 + 描述，AI 才知道这件东西是什么、能干什么。
+          </span>
+        </Card>
+      )}
+
       {section === 'character' && (
         <>
           <div className="section-head">
@@ -519,28 +590,6 @@ export default function BuilderPage({ novel, onNavigate, previewOpen = false, on
       {section === 'plot' && (
         <>
           <Card title="情节卡" meta={`${data.plots.length} 条`} className="card--frame">
-        <div className="plot-font">
-          <span className="label">情节字号</span>
-          <button
-            type="button"
-            className="plot__action"
-            aria-label="缩小情节字号"
-            disabled={fontSize <= 12}
-            onClick={() => novel.setPlotFontSize(fontSize - 1)}
-          >
-            A−
-          </button>
-          <span className="plot-font__value">{fontSize}px</span>
-          <button
-            type="button"
-            className="plot__action"
-            aria-label="放大情节字号"
-            disabled={fontSize >= 22}
-            onClick={() => novel.setPlotFontSize(fontSize + 1)}
-          >
-            A＋
-          </button>
-        </div>
         {data.plots.length > 0 && (plotTagStats.length > 0 || hiddenPlotTags.length > 0) && (
           <div className="plot-tagfilter">
             <div className="plot-tagfilter__row">
@@ -768,25 +817,6 @@ export default function BuilderPage({ novel, onNavigate, previewOpen = false, on
             <label className="field__label" htmlFor="plot-dialog-content">
               情节内容
             </label>
-            <button
-              type="button"
-              className="plot__action"
-              aria-label="缩小情节字号"
-              disabled={fontSize <= 12}
-              onClick={() => novel.setPlotFontSize(fontSize - 1)}
-            >
-              A−
-            </button>
-            <span className="plot-font__value">{fontSize}px</span>
-            <button
-              type="button"
-              className="plot__action"
-              aria-label="放大情节字号"
-              disabled={fontSize >= 22}
-              onClick={() => novel.setPlotFontSize(fontSize + 1)}
-            >
-              A＋
-            </button>
           </div>
           <textarea
             id="plot-dialog-content"
@@ -804,7 +834,7 @@ export default function BuilderPage({ novel, onNavigate, previewOpen = false, on
 
         <div className="plot-form__row">
           <label className="label" htmlFor="plot-dialog-words">
-            这条情节的指定字数（可留空）
+            字数要求
           </label>
           <input
             id="plot-dialog-words"
@@ -812,11 +842,9 @@ export default function BuilderPage({ novel, onNavigate, previewOpen = false, on
             type="number"
             min="0"
             step="100"
-            placeholder="不填"
             value={plotDraft.wordCount}
             onChange={(event) => setPlotDraft((prev) => ({ ...prev, wordCount: event.target.value }))}
           />
-          <span className="tool-hint">留空就不写进提示词，不会默认 800 字</span>
         </div>
 
         <TechniqueField

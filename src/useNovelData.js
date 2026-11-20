@@ -6,11 +6,13 @@ const STORAGE_KEY = 'novel-ui.builder.v1'
 const emptyData = {
   characters: [],
   scenes: [],
+  /** 物品卡：道具、信物、武器、证件……写进提示词让 AI 用得上 */
+  items: [],
   techniques: [],
   plots: [],
-  inBuilder: { characters: [], scenes: [] },
-  /** 已在上下文里的人/景：提示词里只留名字和备注，不再贴卡片描述，省 token */
-  inContext: { characters: [], scenes: [] },
+  inBuilder: { characters: [], scenes: [], items: [] },
+  /** 已在上下文里的人/景/物：提示词里只留名字和备注，不再贴卡片描述，省 token */
+  inContext: { characters: [], scenes: [], items: [] },
   notes: { character: '', scene: '' },
   /** 构造器里每个人物独立的本章备注（衣服、心情、状态……），按人物 id 存 */
   characterNotes: {},
@@ -24,6 +26,9 @@ const emptyData = {
 
 const PLOT_FONT_MIN = 12
 const PLOT_FONT_MAX = 22
+
+/** 可以批量导入的四类卡片 */
+const AF_KINDS = ['characters', 'scenes', 'items', 'techniques']
 
 const uid = () =>
   globalThis.crypto?.randomUUID?.() ??
@@ -42,13 +47,24 @@ const normalize = (raw) => {
     ...base,
     characters: Array.isArray(raw.characters) ? raw.characters : [],
     scenes: Array.isArray(raw.scenes) ? raw.scenes : [],
+    items: Array.isArray(raw.items) ? raw.items : [],
     techniques: (Array.isArray(raw.techniques) ? raw.techniques : []).map((item) => ({
       ...item,
       tags: Array.isArray(item.tags) ? item.tags : [],
     })),
     plots: Array.isArray(raw.plots) ? raw.plots : [],
-    inBuilder: { ...base.inBuilder, ...(raw.inBuilder || {}) },
-    inContext: { ...base.inContext, ...(raw.inContext || {}) },
+    inBuilder: {
+      characters: [],
+      scenes: [],
+      items: [],
+      ...(raw.inBuilder || {}),
+    },
+    inContext: {
+      characters: [],
+      scenes: [],
+      items: [],
+      ...(raw.inContext || {}),
+    },
     notes: { ...base.notes, ...(raw.notes || {}) },
     characterNotes: { ...(raw.characterNotes || {}) },
     promptIntro: typeof raw.promptIntro === 'string' ? raw.promptIntro : null,
@@ -69,6 +85,7 @@ const loadLocal = () => {
 const isBlank = (d) =>
   d.characters.length === 0 &&
   d.scenes.length === 0 &&
+  (d.items || []).length === 0 &&
   d.techniques.length === 0 &&
   d.plots.length === 0
 
@@ -197,6 +214,25 @@ export function useNovelData() {
           ...prev.scenes,
           { id: uid(), name, detail, createdAt: Date.now() },
         ],
+      }
+    })
+  }, [])
+
+  const saveItem = useCallback((draft) => {
+    const name = draft.name.trim() || '未命名物品'
+    const detail = draft.detail.trim()
+    setData((prev) => {
+      if (draft.id) {
+        return {
+          ...prev,
+          items: prev.items.map((item) =>
+            item.id === draft.id ? { ...item, name, detail } : item,
+          ),
+        }
+      }
+      return {
+        ...prev,
+        items: [...prev.items, { id: uid(), name, detail, createdAt: Date.now() }],
       }
     })
   }, [])
@@ -370,7 +406,7 @@ export function useNovelData() {
    * 返回 { added, skipped } 给页面提示用。
    */
   const importEntities = useCallback((kind, items) => {
-    const key = kind === 'characters' ? 'characters' : kind === 'scenes' ? 'scenes' : 'techniques'
+    const key = AF_KINDS.includes(kind) ? kind : 'techniques'
     const incoming = (Array.isArray(items) ? items : [items])
       .map((raw) => {
         if (typeof raw === 'string') return { name: raw.trim(), detail: '', tags: [] }
@@ -419,8 +455,8 @@ export function useNovelData() {
     setData((prev) => ({
       ...prev,
       plots: [],
-      inBuilder: { characters: [], scenes: [] },
-      inContext: { characters: [], scenes: [] },
+      inBuilder: { characters: [], scenes: [], items: [] },
+      inContext: { characters: [], scenes: [], items: [] },
       notes: { character: '', scene: '' },
       characterNotes: {},
     }))
@@ -466,6 +502,7 @@ export function useNovelData() {
     applyLoaded,
     saveCharacter,
     saveScene,
+    saveItem,
     saveTechnique,
     removeEntity,
     toggleInBuilder,

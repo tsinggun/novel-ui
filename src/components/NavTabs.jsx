@@ -10,8 +10,9 @@ const BUILDER_TAB = { id: 'builder', label: '构造器', unit: '' }
 
 const CARD_TABS = [
   { id: 'scene', label: '场景卡', unit: '景' },
-  { id: 'technique', label: '技法卡', unit: '次' },
   { id: 'character', label: '人物卡', unit: '位' },
+  { id: 'item', label: '物品卡', unit: '件' },
+  { id: 'technique', label: '技法卡', unit: '次' },
 ]
 
 /** layout=side 是左侧竖排导航（现在用的），top 是老的横排 */

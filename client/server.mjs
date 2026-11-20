@@ -105,10 +105,11 @@ async function restoreLastFile() {
 const emptyData = {
   characters: [],
   scenes: [],
+  items: [],
   techniques: [],
   plots: [],
-  inBuilder: { characters: [], scenes: [] },
-  inContext: { characters: [], scenes: [] },
+  inBuilder: { characters: [], scenes: [], items: [] },
+  inContext: { characters: [], scenes: [], items: [] },
   notes: { character: '', scene: '' },
   characterNotes: {},
   promptIntro: null,
@@ -184,7 +185,7 @@ async function setDataFile(target) {
  *   作品/
  *   ├── manifest.json        索引 + 非卡片类字段（inBuilder / 备注 / 设置…）
  *   ├── characters/<名字>~<id尾6>.json
- *   ├── scenes/ techniques/ plots/
+ *   ├── scenes/ items/ techniques/ plots/
  *   └── .history/<kind>/<文件>.<时间戳>.json   每个文件改前的旧版本
  *
  * 三条铁律：
@@ -193,7 +194,7 @@ async function setDataFile(target) {
  *   3. 改前留旧版：每个文件在 .history 里留最近 20 份
  * ------------------------------------------------------------------ */
 
-const ENTITY_KINDS = ['characters', 'scenes', 'techniques', 'plots']
+const ENTITY_KINDS = ['characters', 'scenes', 'items', 'techniques', 'plots']
 const MANIFEST_NAME = 'manifest.json'
 const HISTORY_DIR = '.history'
 const HISTORY_KEEP = 20
@@ -268,7 +269,7 @@ function emptyManifest(title) {
     title: title || '未命名作品',
     createdAt: now,
     updatedAt: now,
-    files: { characters: {}, scenes: {}, techniques: {}, plots: {} },
+    files: { characters: {}, scenes: {}, items: {}, techniques: {}, plots: {} },
     meta: {},
   }
 }

@@ -18,15 +18,17 @@ export function buildPrompt({
   recap = '',
   scenes = [],
   characters = [],
+  items = [],
   plots = [],
   characterNotes = {},
   sceneNote = '',
   techniques = [],
-  inContext = { characters: [], scenes: [] },
+  inContext = { characters: [], scenes: [], items: [] },
 }) {
   // 已在上下文的卡片：不再重复贴描述，只留名字 + 本章备注，省 token
   const sceneInCtx = new Set(inContext.scenes || [])
   const charInCtx = new Set(inContext.characters || [])
+  const itemInCtx = new Set(inContext.items || [])
 
 
   // 情节实际用到的技法（去重，保持首次出现顺序）；用于提示词预览里提示「哪些技法还没写用法说明」
@@ -86,6 +88,20 @@ export function buildPrompt({
     lines.push('')
   }
 
+  // 物品卡：名字 + 描述，AI 才知道这件东西能不能用、怎么用
+  if (items.length > 0) {
+    lines.push('【物品卡】')
+    items.forEach((item, index) => {
+      if (itemInCtx.has(item.id)) {
+        lines.push(`${index + 1}. ${item.name}（这件物品的设定已在上下文，不再重复）`)
+      } else {
+        lines.push(`${index + 1}. ${item.name}`)
+        if (item.detail) lines.push(`   物品描述：${oneLine(item.detail)}`)
+      }
+    })
+    lines.push('')
+  }
+
   // 情节卡：每条情节独立成块 —— 情节文本、字数、用到的技法（名字 + 用法说明）全在同一个块里。
   // 技法说明必须写在这里，AI 才可能照着写；只写技法名等于没写。
   if (plots.length > 0) {
@@ -125,8 +141,12 @@ export function buildPrompt({
     characters.reduce(
       (sum, person) => (charInCtx.has(person.id) ? sum + (person.detail || '').length : sum),
       0,
-    )
-  const inContextCount = (inContext.scenes || []).length + (inContext.characters || []).length
+    ) +
+    items.reduce((sum, item) => (itemInCtx.has(item.id) ? sum + (item.detail || '').length : sum), 0)
+  const inContextCount =
+    (inContext.scenes || []).length +
+    (inContext.characters || []).length +
+    (inContext.items || []).length
 
   return { intro, body, full, missingTechNotes, savedChars, inContextCount }
 }

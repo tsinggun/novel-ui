@@ -22,7 +22,8 @@ export default function BuilderPage({ novel, onNavigate, previewOpen = false, on
   const [plotDraft, setPlotDraft] = useState(emptyPlotDraft)
   const [plotHint, setPlotHint] = useState('')
   const [plotDialogOpen, setPlotDialogOpen] = useState(false)
-  const [editingPlot, setEditingPlot] = useState(null)
+  /** 正在编辑的那条情节的 id；null 表示这个弹窗是用来新增的 */
+  const [plotEditingId, setPlotEditingId] = useState(null)
   const [notice, setNotice] = useState('')
   const [sceneOpen, setSceneOpen] = useState(false)
   const [openCharacterId, setOpenCharacterId] = useState(null)
@@ -105,7 +106,8 @@ export default function BuilderPage({ novel, onNavigate, previewOpen = false, on
     inContext: data.inContext,
   })
 
-  const handleAddPlot = () => {
+  /** 新增和编辑走同一个弹窗：先填草稿，再按有没有 id 决定是 add 还是 update */
+  const handleSavePlot = () => {
     if (!plotDraft.content.trim()) {
       setPlotHint('请先填写「情节内容」，再保存。')
       if (!window.__NOVEL_UI_FOCUS__?.('plot-dialog-content')) {
@@ -113,34 +115,41 @@ export default function BuilderPage({ novel, onNavigate, previewOpen = false, on
       }
       return
     }
-    novel.addPlot({
-      content: plotDraft.content,
-      wordCount: plotDraft.wordCount,
-      techniqueIds: plotDraft.techniqueIds,
-    })
-    setPlotDraft(emptyPlotDraft)
+    if (plotEditingId) {
+      novel.updatePlot(plotEditingId, {
+        content: plotDraft.content,
+        /* 字数留空就存 0，提示词里不会出现「字数：约 …」这一行 */
+        wordCount: plotDraft.wordCount,
+        techniqueIds: plotDraft.techniqueIds,
+      })
+    } else {
+      novel.addPlot({
+        content: plotDraft.content,
+        wordCount: plotDraft.wordCount,
+        techniqueIds: plotDraft.techniqueIds,
+      })
+      setPlotDraft(emptyPlotDraft)
+    }
     setPlotHint('')
+    setPlotEditingId(null)
     setPlotDialogOpen(false)
   }
 
   const startPlotEdit = (plot) => {
-    setEditingPlot({
-      id: plot.id,
+    setPlotDraft({
       content: plot.content,
       wordCount: plot.wordCount ? String(plot.wordCount) : '',
       techniqueIds: [...(plot.techniqueIds || [])],
     })
+    setPlotEditingId(plot.id)
+    setPlotHint('')
+    setPlotDialogOpen(true)
   }
 
-  const handleSavePlotEdit = () => {
-    if (!editingPlot) return
-    if (!editingPlot.content.trim()) return
-    novel.updatePlot(editingPlot.id, {
-      content: editingPlot.content,
-      wordCount: editingPlot.wordCount,
-      techniqueIds: editingPlot.techniqueIds,
-    })
-    setEditingPlot(null)
+  const closePlotDialog = () => {
+    setPlotDialogOpen(false)
+    setPlotEditingId(null)
+    setPlotHint('')
   }
 
   const handleExport = async () => {
@@ -177,7 +186,7 @@ export default function BuilderPage({ novel, onNavigate, previewOpen = false, on
       const ok = window.confirm('导入会覆盖当前所有卡片和情节，确定继续吗？')
       if (!ok) return
       novel.importData(parsed)
-      setEditingPlot(null)
+      closePlotDialog()
       setPlotDraft(emptyPlotDraft)
       setNotice(`已导入：${file.name}`)
     } catch {
@@ -191,7 +200,7 @@ export default function BuilderPage({ novel, onNavigate, previewOpen = false, on
     )
     if (!ok) return
     novel.clearBuilder()
-    setEditingPlot(null)
+    closePlotDialog()
     setPlotDraft(emptyPlotDraft)
     setPlotDialogOpen(false)
     setSceneOpen(false)
@@ -628,71 +637,6 @@ export default function BuilderPage({ novel, onNavigate, previewOpen = false, on
               const tags = plotTags(plot)
               if (plotHidden(plot)) return null
 
-              if (editingPlot?.id === plot.id) {
-                return (
-                  <li key={plot.id} className="plot plot--editing">
-                    <div className="plot__head">
-                      <span className="plot__index">情节 {String(index + 1).padStart(2, '0')}</span>
-                      <span className="plot__meta">编辑中</span>
-                    </div>
-
-                    <div className="plot-form__row">
-                      <label className="label" htmlFor={`plot-words-${plot.id}`}>
-                        这条的字数
-                      </label>
-                      <input
-                        id={`plot-words-${plot.id}`}
-                        className="input input--number"
-                        type="number"
-                        min="0"
-                        step="100"
-                        placeholder="800"
-                        value={editingPlot.wordCount}
-                        onChange={(event) =>
-                          setEditingPlot((prev) => ({ ...prev, wordCount: event.target.value }))
-                        }
-                      />
-                    </div>
-
-                    <textarea
-                      className="input input--area"
-                      style={{ fontSize: `calc(${fontSize}px * var(--fs))` }}
-                      value={editingPlot.content}
-                      placeholder="这一条情节发生了什么，谁做了什么，结果如何……"
-                      onChange={(event) =>
-                        setEditingPlot((prev) => ({ ...prev, content: event.target.value }))
-                      }
-                    />
-
-                    <TechniqueField
-                      techniques={data.techniques}
-                      selectedIds={editingPlot.techniqueIds}
-                      onChange={(ids) =>
-                        setEditingPlot((prev) => ({ ...prev, techniqueIds: ids }))
-                      }
-                      onNavigate={onNavigate}
-                    />
-
-                    <div className="plot__edit-actions">
-                      <button
-                        type="button"
-                        className="btn btn--solid btn--sm"
-                        onClick={handleSavePlotEdit}
-                      >
-                        保存
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn--ghost btn--sm"
-                        onClick={() => setEditingPlot(null)}
-                      >
-                        取消
-                      </button>
-                    </div>
-                  </li>
-                )
-              }
-
               return (
                 <li key={plot.id} className="plot">
                   <div className="plot__head">
@@ -781,6 +725,8 @@ export default function BuilderPage({ novel, onNavigate, previewOpen = false, on
               type="button"
               className="btn btn--solid btn--wide"
               onClick={() => {
+                setPlotEditingId(null)
+                setPlotDraft(emptyPlotDraft)
                 setPlotHint('')
                 setPlotDialogOpen(true)
               }}
@@ -793,21 +739,25 @@ export default function BuilderPage({ novel, onNavigate, previewOpen = false, on
 
       <DetailModal
         open={plotDialogOpen}
-        title="添加情节"
+        title={plotEditingId ? '编辑情节' : '添加情节'}
         tag="情节"
-        meta={`第 ${String(data.plots.length + 1).padStart(2, '0')} 条`}
-        onClose={() => setPlotDialogOpen(false)}
+        meta={
+          plotEditingId
+            ? `第 ${String(data.plots.findIndex((item) => item.id === plotEditingId) + 1).padStart(2, '0')} 条`
+            : `第 ${String(data.plots.length + 1).padStart(2, '0')} 条`
+        }
+        onClose={closePlotDialog}
         footer={
           <>
-            <span className="tool-hint detail__foot-hint">取消只关弹窗，草稿会留着；保存后才清空。</span>
-            <button
-              type="button"
-              className="btn btn--sm btn--ghost"
-              onClick={() => setPlotDialogOpen(false)}
-            >
+            <span className="tool-hint detail__foot-hint">
+              {plotEditingId
+                ? '改完点「保存情节」，点取消就丢弃这次修改。'
+                : '取消只关弹窗，草稿会留着；保存后才清空。'}
+            </span>
+            <button type="button" className="btn btn--sm btn--ghost" onClick={closePlotDialog}>
               取消
             </button>
-            <button type="button" className="btn btn--sm btn--solid" onClick={handleAddPlot}>
+            <button type="button" className="btn btn--sm btn--solid" onClick={handleSavePlot}>
               保存情节
             </button>
           </>
@@ -854,7 +804,7 @@ export default function BuilderPage({ novel, onNavigate, previewOpen = false, on
 
         <div className="plot-form__row">
           <label className="label" htmlFor="plot-dialog-words">
-            这条情节的指定字数
+            这条情节的指定字数（可留空）
           </label>
           <input
             id="plot-dialog-words"
@@ -862,10 +812,11 @@ export default function BuilderPage({ novel, onNavigate, previewOpen = false, on
             type="number"
             min="0"
             step="100"
-            placeholder="800"
+            placeholder="不填"
             value={plotDraft.wordCount}
             onChange={(event) => setPlotDraft((prev) => ({ ...prev, wordCount: event.target.value }))}
           />
+          <span className="tool-hint">留空就不写进提示词，不会默认 800 字</span>
         </div>
 
         <TechniqueField

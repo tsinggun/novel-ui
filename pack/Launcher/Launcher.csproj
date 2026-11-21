@@ -14,8 +14,8 @@
     <InvariantGlobalization>true</InvariantGlobalization>
     <Nullable>disable</Nullable>
     <ApplicationIcon>..\icon.ico</ApplicationIcon>
-    <Version>0.2.18</Version>
-    <FileVersion>0.2.18.0</FileVersion>
+    <Version>0.2.19</Version>
+    <FileVersion>0.2.19.0</FileVersion>
     <Product>小说构建器</Product>
     <AssemblyTitle>小说构建器</AssemblyTitle>
   </PropertyGroup>

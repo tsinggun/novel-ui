@@ -1142,6 +1142,39 @@ async function openAppWindow(targetUrl) {
   spawn('cmd', ['/c', 'start', '', targetUrl], { detached: true, stdio: 'ignore' }).unref()
 }
 
+/**
+ * 窗口关掉后没有任何通知，只能盯着桌面上那个「小说构建器」窗口：
+ * 先等它出现，出现过之后再消失，就说明用户关了窗口 —— 立刻收摊退出，
+ * 否则 node 会一直挂在后台占着端口和 exe，下一次启动就会报「被占用」。
+ */
+function watchAppWindow() {
+  const GRACE = 5000 // 给窗口留出画出来的时间
+  const INTERVAL = 5 * 1000
+  let seen = false
+  let missingTicks = 0
+
+  setTimeout(async () => {
+    const tick = async () => {
+      const alive = await hasAppWindow()
+      if (alive) {
+        seen = true
+        missingTicks = 0
+        return
+      }
+      if (!seen) return // 窗口还没开出来（可能交给了默认浏览器），先不动
+      missingTicks += 1
+      // 连续两次都没看到才算真关了，防止刷新/重开窗口的瞬间误杀
+      if (missingTicks >= 2) {
+        console.log('  窗口已关闭，服务退出。')
+        server.close()
+        process.exit(0)
+      }
+    }
+    tick()
+    setInterval(tick, INTERVAL)
+  }, GRACE)
+}
+
 /* 单实例：已经有一份在跑就不要再起服务、更不要再开第二个窗口 */
 const running = await hasRunningInstance()
 if (running && !process.argv.includes('--no-window')) {
@@ -1182,4 +1215,6 @@ async function onListening() {
   if (process.argv.includes('--no-window')) return
 
   await openAppWindow(targetUrl)
+  // 自己开的 --app 窗口：用户关掉窗口就该退出，别留后台进程
+  watchAppWindow()
 }

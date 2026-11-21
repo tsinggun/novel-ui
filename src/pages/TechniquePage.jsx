@@ -48,7 +48,7 @@ export default function TechniquePage({ novel }) {
 
   const handleSave = () => {
     if (!draft || !draft.name.trim()) return
-    novel.saveTechnique(draft)
+    novel.saveEntity('techniques', draft)
     setDraft(null)
   }
 
@@ -289,7 +289,7 @@ export default function TechniquePage({ novel }) {
               detailPlaceholder="这个技法怎么用、适合放在什么样的情节里、要注意什么……"
               tagLabel="标签"
               tags={item.tags}
-              onSave={(patch) => novel.saveTechnique(patch)}
+              onSave={(patch) => novel.saveEntity('techniques', patch)}
               onRemove={() => novel.removeEntity('techniques', item.id)}
               showBuilder={false}
             />

@@ -950,13 +950,34 @@ if (!existsSync(path.join(distDir, 'index.html'))) {
   process.exit(1)
 }
 
+/** 前端通知关窗后的待退出定时器；有请求进来就取消 */
+let pendingExit = null
+
 // 接着上次载入的数据文件；没有记录就用文档里的默认文件；都没有就新建一份空的
 await restoreLastFile()
 await ensureInitialDataFile()
 
 const server = createServer(async (req, res) => {
   lastActiveAt = Date.now()
+  // 收到「窗口要关了」之后又来了新请求 → 说明只是刷新页面，取消退出
+  if (pendingExit) {
+    clearTimeout(pendingExit)
+    pendingExit = null
+    console.log('  收到新请求，取消退出。')
+  }
   const url = new URL(req.url || '/', 'http://127.0.0.1')
+  if (url.pathname === '/plot-api/bye') {
+    // 前端 window 关闭时用 sendBeacon 打这一枪；等 3 秒没新请求才真退，
+    // 这样刷新页面（pagehide 也会触发）不会把服务带走
+    if (pendingExit) clearTimeout(pendingExit)
+    pendingExit = setTimeout(() => {
+      console.log('  窗口已关闭（前端通知），服务退出。')
+      server.close()
+      process.exit(0)
+    }, 3000)
+    res.writeHead(204).end()
+    return
+  }
   if (url.pathname === '/plot-api/state') return handleState(req, res)
   if (url.pathname === '/plot-api/export') return handleExport(req, res)
   if (url.pathname === '/plot-api/library') return handleLibrary(req, res)
@@ -1018,7 +1039,7 @@ async function hasRunningInstance() {
 function hasAppWindow() {
   const script = `
 $count = (Get-Process chrome,msedge -ErrorAction SilentlyContinue |
-  Where-Object { $_.MainWindowTitle -eq '小说构建器' } |
+  Where-Object { $_.MainWindowTitle -like '小说构建器*' } |
   Measure-Object).Count
 Write-Output $count
 `.trim()
@@ -1044,7 +1065,7 @@ Write-Output $count
 function focusAppWindow() {
   const script = `
 $win = Get-Process chrome,msedge -ErrorAction SilentlyContinue |
-  Where-Object { $_.MainWindowTitle -eq '小说构建器' } |
+  Where-Object { $_.MainWindowTitle -like '小说构建器*' } |
   Select-Object -First 1
 if ($win) {
   $shell = New-Object -ComObject WScript.Shell
@@ -1211,6 +1232,9 @@ async function onListening() {
   console.log(`小说构建器 · 便携版`)
   console.log(`  数据文件：${dataFile}`)
   console.log(`  本地地址：${targetUrl}`)
+  if (port !== PREFERRED_PORT) {
+    console.log(`  注意：${PREFERRED_PORT} 端口被占用，本次改用 ${port}，窗口标题会带端口号`)
+  }
 
   if (process.argv.includes('--no-window')) return
 

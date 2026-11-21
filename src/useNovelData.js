@@ -30,6 +30,14 @@ const PLOT_FONT_MAX = 22
 /** 可以批量导入的四类卡片 */
 const AF_KINDS = ['characters', 'scenes', 'items', 'techniques']
 
+/** 卡片类实体的默认名：名字留空时用它兜底 */
+const ENTITY_DEFAULTS = {
+  characters: '未命名人物',
+  scenes: '未命名场景',
+  items: '未命名物品',
+  techniques: '未命名技法',
+}
+
 const uid = () =>
   globalThis.crypto?.randomUUID?.() ??
   `id-${Date.now()}-${Math.random().toString(16).slice(2)}`
@@ -173,90 +181,34 @@ export function useNovelData() {
     }
   }, [data, loaded])
 
-  /** 新建或更新人物卡（draft 带 id 即为编辑） */
-  const saveCharacter = useCallback((draft) => {
-    const name = draft.name.trim() || '未命名人物'
-    const detail = draft.detail.trim()
-    setData((prev) => {
-      if (draft.id) {
-        return {
-          ...prev,
-          characters: prev.characters.map((item) =>
-            item.id === draft.id ? { ...item, name, detail } : item,
-          ),
-        }
-      }
-      return {
-        ...prev,
-        characters: [
-          ...prev.characters,
-          { id: uid(), name, detail, createdAt: Date.now() },
-        ],
-      }
-    })
-  }, [])
-
-  const saveScene = useCallback((draft) => {
-    const name = draft.name.trim() || '未命名场景'
-    const detail = draft.detail.trim()
-    setData((prev) => {
-      if (draft.id) {
-        return {
-          ...prev,
-          scenes: prev.scenes.map((item) =>
-            item.id === draft.id ? { ...item, name, detail } : item,
-          ),
-        }
-      }
-      return {
-        ...prev,
-        scenes: [
-          ...prev.scenes,
-          { id: uid(), name, detail, createdAt: Date.now() },
-        ],
-      }
-    })
-  }, [])
-
-  const saveItem = useCallback((draft) => {
-    const name = draft.name.trim() || '未命名物品'
-    const detail = draft.detail.trim()
-    setData((prev) => {
-      if (draft.id) {
-        return {
-          ...prev,
-          items: prev.items.map((item) =>
-            item.id === draft.id ? { ...item, name, detail } : item,
-          ),
-        }
-      }
-      return {
-        ...prev,
-        items: [...prev.items, { id: uid(), name, detail, createdAt: Date.now() }],
-      }
-    })
-  }, [])
-
-  const saveTechnique = useCallback((draft) => {
-    const name = draft.name.trim() || '未命名技法'
+  /**
+   * 卡片类实体统一的新建 / 更新入口：人物、场景、物品结构完全一样，只有技法多一组标签。
+   * 编辑传 id，新建不传；名字留空按 kind 给默认名。
+   */
+  const saveEntity = useCallback((kind, draft) => {
+    const name = draft.name.trim() || ENTITY_DEFAULTS[kind] || '未命名'
     const detail = draft.detail.trim()
     const tags = Array.isArray(draft.tags)
       ? draft.tags.map((tag) => String(tag).trim()).filter(Boolean)
       : []
     setData((prev) => {
+      const list = prev[kind] || []
+      const withTags = kind === 'techniques'
       if (draft.id) {
         return {
           ...prev,
-          techniques: prev.techniques.map((item) =>
-            item.id === draft.id ? { ...item, name, detail, tags } : item,
+          [kind]: list.map((item) =>
+            item.id === draft.id
+              ? { ...item, name, detail, ...(withTags ? { tags } : {}) }
+              : item,
           ),
         }
       }
       return {
         ...prev,
-        techniques: [
-          ...prev.techniques,
-          { id: uid(), name, detail, tags, createdAt: Date.now() },
+        [kind]: [
+          ...list,
+          { id: uid(), name, detail, ...(withTags ? { tags } : {}), createdAt: Date.now() },
         ],
       }
     })
@@ -500,10 +452,7 @@ export function useNovelData() {
     loaded,
     reload,
     applyLoaded,
-    saveCharacter,
-    saveScene,
-    saveItem,
-    saveTechnique,
+    saveEntity,
     removeEntity,
     toggleInBuilder,
     toggleInContext,

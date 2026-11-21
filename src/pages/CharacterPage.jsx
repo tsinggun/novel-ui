@@ -39,7 +39,7 @@ export default function CharacterPage({ novel }) {
 
   const handleSave = () => {
     if (!draft || !draft.name.trim()) return
-    novel.saveCharacter(draft)
+    novel.saveEntity('characters', draft)
     setDraft(null)
   }
 
@@ -120,7 +120,7 @@ export default function CharacterPage({ novel }) {
               detailPlaceholder="出身、性格、执念、与主角的关系、关键经历……"
               inBuilder={inBuilder(item.id)}
               onToggleBuilder={() => novel.toggleInBuilder('characters', item.id)}
-              onSave={(patch) => novel.saveCharacter(patch)}
+              onSave={(patch) => novel.saveEntity('characters', patch)}
               onRemove={() => novel.removeEntity('characters', item.id)}
             />
           ))}

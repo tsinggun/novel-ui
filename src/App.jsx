@@ -36,6 +36,22 @@ function App() {
     }
   }, [])
 
+  /**
+   * 关窗时通知本地服务退出（不然 node 会一直挂后台占着端口和 exe）。
+   * 服务端会等 3 秒确认没有新请求才退，所以刷新页面不会误杀。
+   */
+  useEffect(() => {
+    const bye = () => {
+      try {
+        navigator.sendBeacon?.('/plot-api/bye')
+      } catch {
+        /* 拿不到 sendBeacon 就算了，服务端还有窗口轮询兜底 */
+      }
+    }
+    window.addEventListener('pagehide', bye)
+    return () => window.removeEventListener('pagehide', bye)
+  }, [])
+
   // 点「设置」外面 / 按 Esc 就把面板收起来
   useEffect(() => {
     if (!settingsOpen) return undefined

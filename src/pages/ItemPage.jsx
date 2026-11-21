@@ -20,7 +20,7 @@ export default function ItemPage({ novel }) {
 
   const handleSave = () => {
     if (!draft || !draft.name.trim()) return
-    novel.saveItem(draft)
+    novel.saveEntity('items', draft)
     setDraft(null)
   }
 
@@ -126,7 +126,7 @@ export default function ItemPage({ novel }) {
               detailPlaceholder="来历、外观、材质、用途、有什么特殊之处、谁给的……"
               inBuilder={inBuilder(item.id)}
               onToggleBuilder={() => novel.toggleInBuilder('items', item.id)}
-              onSave={(patch) => novel.saveItem(patch)}
+              onSave={(patch) => novel.saveEntity('items', patch)}
               onRemove={() => novel.removeEntity('items', item.id)}
             />
           ))}

@@ -39,7 +39,7 @@ export default function ScenePage({ novel }) {
 
   const handleSave = () => {
     if (!draft || !draft.name.trim()) return
-    novel.saveScene(draft)
+    novel.saveEntity('scenes', draft)
     setDraft(null)
   }
 
@@ -120,7 +120,7 @@ export default function ScenePage({ novel }) {
               detailPlaceholder="时间、地点、氛围、在场人物、发生的事件……"
               inBuilder={inBuilder(item.id)}
               onToggleBuilder={() => novel.toggleInBuilder('scenes', item.id)}
-              onSave={(patch) => novel.saveScene(patch)}
+              onSave={(patch) => novel.saveEntity('scenes', patch)}
               onRemove={() => novel.removeEntity('scenes', item.id)}
             />
           ))}

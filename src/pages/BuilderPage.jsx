@@ -1,40 +1,29 @@
 import { useRef, useState } from 'react'
-import Card from '../components/Card'
-import DetailModal from '../components/DetailModal'
 import PromptPreview from '../components/PromptPreview'
-import TechniqueField from '../components/TechniqueField'
 import { buildPrompt, DEFAULT_PROMPT_INTRO } from '../prompt'
 import { exportToDisk } from '../persist'
+import RecapSection from './builder/RecapSection'
+import SceneSection from './builder/SceneSection'
+import ItemSection from './builder/ItemSection'
+import CharacterSection from './builder/CharacterSection'
+import PlotSection from './builder/PlotSection'
 
-const emptyPlotDraft = { content: '', wordCount: '', techniqueIds: [] }
-
-/** 构造器内部的分区 tab：前情提要 / 场景 / 人物 / 情节，一次只展开一块 */
+/** 构造器内部的分区 tab：前情提要 / 场景 / 人物 / 物品 / 情节，一次只展开一块 */
 const SECTIONS = [
-  { id: 'recap', label: '前情提要' },
-  { id: 'scene', label: '场景' },
-  { id: 'character', label: '人物' },
-  { id: 'item', label: '物品' },
-  { id: 'plot', label: '情节' },
+  { id: 'recap', label: '前情提要', unit: '字' },
+  { id: 'scene', label: '场景', unit: '景' },
+  { id: 'character', label: '人物', unit: '位' },
+  { id: 'item', label: '物品', unit: '件' },
+  { id: 'plot', label: '情节', unit: '条' },
 ]
 
 export default function BuilderPage({ novel, onNavigate, previewOpen = false, onPreviewClose }) {
   const { data } = novel
   const [section, setSection] = useState('recap')
-  const [plotDraft, setPlotDraft] = useState(emptyPlotDraft)
-  const [plotHint, setPlotHint] = useState('')
-  const [plotDialogOpen, setPlotDialogOpen] = useState(false)
-  /** 正在编辑的那条情节的 id；null 表示这个弹窗是用来新增的 */
-  const [plotEditingId, setPlotEditingId] = useState(null)
   const [notice, setNotice] = useState('')
-  const [sceneOpen, setSceneOpen] = useState(false)
-  const [openCharacterId, setOpenCharacterId] = useState(null)
+  /** 清空构造器 / 导入数据时递增，通知各分区把弹窗收起来 */
+  const [resetSignal, setResetSignal] = useState(0)
   const fileInputRef = useRef(null)
-
-  // 卡片主体可点开弹窗，但输入框和按钮上的点击保持原样
-  const cardClickGuard = (open) => (event) => {
-    if (event.target.closest('button, a, input, textarea, select, label')) return
-    open()
-  }
 
   const sceneItems = data.inBuilder.scenes
     .map((id) => data.scenes.find((item) => item.id === id))
@@ -51,15 +40,6 @@ export default function BuilderPage({ novel, onNavigate, previewOpen = false, on
   const intro = data.promptIntro ?? DEFAULT_PROMPT_INTRO
   const fontSize = data.plotFontSize ?? 14
 
-  // 每条情节自带它所用技法的标签（去重），显示在情节卡下面
-  const plotTags = (plot) =>
-    [...new Set(
-      (plot.techniqueIds || [])
-        .map((id) => data.techniques.find((item) => item.id === id))
-        .filter(Boolean)
-        .flatMap((tech) => tech.tags || []),
-    )]
-
   const prompt = buildPrompt({
     intro,
     recap: data.previousRecap || '',
@@ -73,51 +53,16 @@ export default function BuilderPage({ novel, onNavigate, previewOpen = false, on
     inContext: data.inContext,
   })
 
-  /** 新增和编辑走同一个弹窗：先填草稿，再按有没有 id 决定是 add 还是 update */
-  const handleSavePlot = () => {
-    if (!plotDraft.content.trim()) {
-      setPlotHint('请先填写「情节内容」，再保存。')
-      if (!window.__NOVEL_UI_FOCUS__?.('plot-dialog-content')) {
-        document.getElementById('plot-dialog-content')?.focus()
-      }
-      return
-    }
-    if (plotEditingId) {
-      novel.updatePlot(plotEditingId, {
-        content: plotDraft.content,
-        /* 字数留空就存 0，提示词里不会出现「字数：约 …」这一行 */
-        wordCount: plotDraft.wordCount,
-        techniqueIds: plotDraft.techniqueIds,
-      })
-    } else {
-      novel.addPlot({
-        content: plotDraft.content,
-        wordCount: plotDraft.wordCount,
-        techniqueIds: plotDraft.techniqueIds,
-      })
-      setPlotDraft(emptyPlotDraft)
-    }
-    setPlotHint('')
-    setPlotEditingId(null)
-    setPlotDialogOpen(false)
-  }
-
-  const startPlotEdit = (plot) => {
-    setPlotDraft({
-      content: plot.content,
-      wordCount: plot.wordCount ? String(plot.wordCount) : '',
-      techniqueIds: [...(plot.techniqueIds || [])],
-    })
-    setPlotEditingId(plot.id)
-    setPlotHint('')
-    setPlotDialogOpen(true)
-  }
-
-  const closePlotDialog = () => {
-    setPlotDialogOpen(false)
-    setPlotEditingId(null)
-    setPlotHint('')
-  }
+  const countOf = (id) =>
+    id === 'recap'
+      ? (data.previousRecap || '').length
+      : id === 'scene'
+        ? sceneItems.length
+        : id === 'character'
+          ? characterItems.length
+          : id === 'item'
+            ? itemItems.length
+            : data.plots.length
 
   const handleExport = async () => {
     const payload = JSON.stringify(data, null, 2)
@@ -153,8 +98,7 @@ export default function BuilderPage({ novel, onNavigate, previewOpen = false, on
       const ok = window.confirm('导入会覆盖当前所有卡片和情节，确定继续吗？')
       if (!ok) return
       novel.importData(parsed)
-      closePlotDialog()
-      setPlotDraft(emptyPlotDraft)
+      setResetSignal((value) => value + 1)
       setNotice(`已导入：${file.name}`)
     } catch {
       setNotice('导入失败：文件不是有效的 JSON。')
@@ -167,11 +111,7 @@ export default function BuilderPage({ novel, onNavigate, previewOpen = false, on
     )
     if (!ok) return
     novel.clearBuilder()
-    closePlotDialog()
-    setPlotDraft(emptyPlotDraft)
-    setPlotDialogOpen(false)
-    setSceneOpen(false)
-    setOpenCharacterId(null)
+    setResetSignal((value) => value + 1)
     setNotice('已清空构造器：情节、已加入的人物场景和备注都清掉了。')
   }
 
@@ -213,526 +153,59 @@ export default function BuilderPage({ novel, onNavigate, previewOpen = false, on
       </header>
 
       <div className="builder-tabs" role="tablist" aria-label="构造器分区">
-        {SECTIONS.map((item) => {
-          const count =
-            item.id === 'recap'
-              ? (data.previousRecap || '').length
-              : item.id === 'scene'
-                ? sceneItems.length
-                : item.id === 'character'
-                  ? characterItems.length
-                  : item.id === 'item'
-                    ? itemItems.length
-                    : data.plots.length
-          const unit =
-            item.id === 'recap'
-              ? '字'
-              : item.id === 'plot'
-                ? '条'
-                : item.id === 'scene'
-                  ? '景'
-                  : item.id === 'item'
-                    ? '件'
-                    : '位'
-          return (
-            <button
-              key={item.id}
-              type="button"
-              role="tab"
-              aria-selected={section === item.id}
-              className={`builder-tabs__item${section === item.id ? ' is-active' : ''}`}
-              onClick={() => setSection(item.id)}
-            >
-              <span className="builder-tabs__label">{item.label}</span>
-              <span className="builder-tabs__count">
-                {count}
-                {unit}
-              </span>
-            </button>
-          )
-        })}
+        {SECTIONS.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            role="tab"
+            aria-selected={section === item.id}
+            className={`builder-tabs__item${section === item.id ? ' is-active' : ''}`}
+            onClick={() => setSection(item.id)}
+          >
+            <span className="builder-tabs__label">{item.label}</span>
+            <span className="builder-tabs__count">
+              {countOf(item.id)}
+              {item.unit}
+            </span>
+          </button>
+        ))}
       </div>
 
-      {section === 'recap' && (
-        <Card title="前情提要" meta="可选" className="card--frame">
-        <label className="label" htmlFor="previous-recap">
-          上一章结尾 / 必要前情
-        </label>
-        <textarea
-          id="previous-recap"
-          className="input input--area"
-          placeholder="上一章最后发生了什么、谁在什么状态、留下了什么悬念……留空就不发给 AI。"
-          value={data.previousRecap || ''}
-          onChange={(event) => novel.setPreviousRecap(event.target.value)}
-        />
-        <span className="card__hint">建议 100–300 字：只写必要前情，太长会挤占正文的上下文</span>
-        </Card>
-      )}
+      {section === 'recap' && <RecapSection novel={novel} data={data} />}
 
       {section === 'scene' && (
-        <Card
-          title="场景卡"
-          meta={`${sceneItems.length} / ${data.scenes.length}`}
-          className="card--frame card--clickable"
-          onClick={cardClickGuard(() => setSceneOpen(true))}
-        >
-        <div className="field field--lg">
-          <span className="field__label">已加入的场景</span>
-          {sceneItems.length > 0 ? (
-            <ul className="chip-list">
-              {sceneItems.map((item) => {
-                const isCtx = (data.inContext.scenes || []).includes(item.id)
-                return (
-                  <li key={item.id} className={`chip${isCtx ? ' chip--ctx' : ''}`}>
-                    <span className="chip__name">{item.name}</span>
-                    {item.detail && <span className="chip__detail">{item.detail}</span>}
-                    <button
-                      type="button"
-                      className={`chip__ctx${isCtx ? ' is-on' : ''}`}
-                      aria-pressed={isCtx}
-                      title="勾选后提示词里不再贴这段场景描述，只留名字与备注，省 token"
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        novel.toggleInContext('scenes', item.id)
-                      }}
-                    >
-                      {isCtx ? '✓ 已在上下文' : '+ 已在上下文'}
-                    </button>
-                    <button
-                      type="button"
-                      className="chip__remove"
-                      aria-label={`移出 ${item.name}`}
-                      onClick={(event) => {
-                        event.stopPropagation()
-                        novel.toggleInBuilder('scenes', item.id)
-                      }}
-                    >
-                      ×
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
-          ) : (
-            <p className="empty">
-              还没有场景卡加入。
-              <button type="button" className="btn btn--link" onClick={() => onNavigate('scene')}>
-                去场景卡页添加
-              </button>
-            </p>
-          )}
-        </div>
-
-        <label className="label" htmlFor="scene-note">
-          备注
-        </label>
-        <textarea
-          id="scene-note"
-          className="input input--area"
-          placeholder="这一章的场景基调、时间地点、氛围、转折……"
-          value={data.notes.scene}
-          onChange={(event) => novel.setNote('scene', event.target.value)}
+        <SceneSection
+          novel={novel}
+          data={data}
+          items={sceneItems}
+          key={resetSignal}
+          onNavigate={onNavigate}
         />
-        <span className="card__hint">点击卡片展开查看与编辑</span>
-        </Card>
       )}
 
-      <DetailModal
-        open={sceneOpen}
-        title="场景卡"
-        tag="本章"
-        meta={`${sceneItems.length} 个场景`}
-        sections={[
-          {
-            label: '已加入的场景',
-            text: sceneItems
-              .map((item, index) => `${index + 1}. ${item.name}\n${item.detail || '（无描述）'}`)
-              .join('\n\n'),
-          },
-        ]}
-        onClose={() => setSceneOpen(false)}
-        footer={
-          <button type="button" className="btn btn--sm" onClick={() => setSceneOpen(false)}>
-            关闭
-          </button>
-        }
-      >
-        <div className="detail__section">
-          <label className="field__label" htmlFor="scene-note-modal">
-            备注
-          </label>
-          <textarea
-            id="scene-note-modal"
-            className="input input--area detail__editor"
-            placeholder="这一章的场景基调、时间地点、氛围、转折……"
-            value={data.notes.scene}
-            onChange={(event) => novel.setNote('scene', event.target.value)}
-          />
-        </div>
-      </DetailModal>
-
       {section === 'item' && (
-        <Card title="物品卡" meta={`${itemItems.length} / ${data.items.length}`} className="card--frame">
-          <div className="field field--lg">
-            <span className="field__label">已加入的物品</span>
-            {itemItems.length > 0 ? (
-              <ul className="chip-list">
-                {itemItems.map((item) => {
-                  const isCtx = (data.inContext.items || []).includes(item.id)
-                  return (
-                    <li key={item.id} className={`chip${isCtx ? ' chip--ctx' : ''}`}>
-                      <span className="chip__name">{item.name}</span>
-                      {item.detail && <span className="chip__detail">{item.detail}</span>}
-                      <button
-                        type="button"
-                        className={`chip__ctx${isCtx ? ' is-on' : ''}`}
-                        aria-pressed={isCtx}
-                        title="勾选后提示词里不再贴这段物品描述，只留名字，省 token"
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          novel.toggleInContext('items', item.id)
-                        }}
-                      >
-                        {isCtx ? '✓ 已在上下文' : '+ 已在上下文'}
-                      </button>
-                      <button
-                        type="button"
-                        className="chip__remove"
-                        aria-label={`移出 ${item.name}`}
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          novel.toggleInBuilder('items', item.id)
-                        }}
-                      >
-                        ×
-                      </button>
-                    </li>
-                  )
-                })}
-              </ul>
-            ) : (
-              <p className="empty">
-                还没有物品卡加入。
-                <button type="button" className="btn btn--link" onClick={() => onNavigate('item')}>
-                  去物品卡页添加
-                </button>
-              </p>
-            )}
-          </div>
-          <span className="card__hint">
-            物品卡会写进提示词的【物品卡】段落：名字 + 描述，AI 才知道这件东西是什么、能干什么。
-          </span>
-        </Card>
+        <ItemSection novel={novel} data={data} items={itemItems} onNavigate={onNavigate} />
       )}
 
       {section === 'character' && (
-        <>
-          <div className="section-head">
-            <h3 className="section-head__title">人物卡</h3>
-            <span className="section-head__meta">
-              {characterItems.length} / {data.characters.length} 位
-            </span>
-          </div>
-
-          {characterItems.length === 0 && (
-            <Card className="card--empty">
-              <p className="empty">
-                还没有人物卡加入。
-                <button
-                  type="button"
-                  className="btn btn--link"
-                  onClick={() => onNavigate('character')}
-                >
-                  去人物卡页添加
-                </button>
-              </p>
-            </Card>
-          )}
-
-          <div className="character-stack">
-            {characterItems.map((item) => (
-              <Card
-                key={item.id}
-                title={item.name}
-                tag="人物"
-                meta={
-                  (data.inContext.characters || []).includes(item.id)
-                    ? '已在上下文'
-                    : data.characterNotes[item.id]?.trim()
-                      ? '已写备注'
-                      : undefined
-                }
-                className="card--frame card--clickable"
-                onClick={cardClickGuard(() => setOpenCharacterId(item.id))}
-                actions={
-                  <button
-                    type="button"
-                    className="btn btn--ghost btn--sm"
-                    onClick={() => novel.toggleInBuilder('characters', item.id)}
-                  >
-                    移出构建器
-                  </button>
-                }
-              >
-                <label className="ctx-toggle">
-                  <input
-                    type="checkbox"
-                    checked={(data.inContext.characters || []).includes(item.id)}
-                    onChange={() => novel.toggleInContext('characters', item.id)}
-                  />
-                  <span className="ctx-toggle__text">
-                    已在上下文（提示词不再贴人物背景，只发本章备注，省 token）
-                  </span>
-                </label>
-                <label className="label" htmlFor={`character-note-${item.id}`}>
-                  本章备注 · 衣服 / 心情 / 状态
-                </label>
-                <textarea
-                  id={`character-note-${item.id}`}
-                  className="input input--area"
-                  placeholder="这一章他穿什么、情绪如何、和谁的关系有变化、要埋伏笔的地方……"
-                  value={data.characterNotes[item.id] || ''}
-                  onChange={(event) => novel.setCharacterNote(item.id, event.target.value)}
-                />
-                <span className="card__hint">点击卡片展开查看与编辑</span>
-              </Card>
-            ))}
-          </div>
-        </>
-      )}
-
-      {(() => {
-        const openItem = characterItems.find((item) => item.id === openCharacterId)
-        if (!openItem) return null
-        return (
-          <DetailModal
-            open
-            title={openItem.name}
-            tag="人物"
-            sections={[{ label: '人物背景', text: openItem.detail }]}
-            onClose={() => setOpenCharacterId(null)}
-            footer={
-              <>
-                <button
-                  type="button"
-                  className="btn btn--sm btn--ghost"
-                  onClick={() => {
-                    novel.toggleInBuilder('characters', openItem.id)
-                  }}
-                >
-                  移出构建器
-                </button>
-                <button
-                  type="button"
-                  className="btn btn--sm"
-                  onClick={() => setOpenCharacterId(null)}
-                >
-                  关闭
-                </button>
-              </>
-            }
-          >
-            <div className="detail__section">
-              <label className="field__label" htmlFor={`character-note-modal-${openItem.id}`}>
-                本章备注 · 衣服 / 心情 / 状态
-              </label>
-              <textarea
-                id={`character-note-modal-${openItem.id}`}
-                className="input input--area detail__editor"
-                placeholder="这一章他穿什么、情绪如何、和谁的关系有变化、要埋伏笔的地方……"
-                value={data.characterNotes[openItem.id] || ''}
-                onChange={(event) => novel.setCharacterNote(openItem.id, event.target.value)}
-              />
-            </div>
-          </DetailModal>
-        )
-      })()}
-
-      {section === 'plot' && (
-        <>
-          <Card title="情节卡" meta={`${data.plots.length} 条`} className="card--frame">
-        {data.plots.length > 0 && (
-          <ul className="plot-list">
-            {data.plots.map((plot, index) => {
-              const techs = (plot.techniqueIds || [])
-                .map((id) => data.techniques.find((item) => item.id === id))
-                .filter(Boolean)
-              const tags = plotTags(plot)
-
-              return (
-                <li key={plot.id} className="plot">
-                  <div className="plot__head">
-                    <span className="plot__index">情节 {String(index + 1).padStart(2, '0')}</span>
-                    {plot.wordCount > 0 && <span className="plot__meta">字数 {plot.wordCount}</span>}
-                    <div className="plot__tools">
-                      <button
-                        type="button"
-                        className="plot__action"
-                        aria-label="上移"
-                        disabled={index === 0}
-                        onClick={() => novel.movePlot(plot.id, -1)}
-                      >
-                        ↑
-                      </button>
-                      <button
-                        type="button"
-                        className="plot__action"
-                        aria-label="下移"
-                        disabled={index === data.plots.length - 1}
-                        onClick={() => novel.movePlot(plot.id, 1)}
-                      >
-                        ↓
-                      </button>
-                      <button
-                        type="button"
-                        className="plot__action"
-                        onClick={() => startPlotEdit(plot)}
-                      >
-                        编辑
-                      </button>
-                      <button
-                        type="button"
-                        className="plot__remove"
-                        aria-label="删除这条情节"
-                        onClick={() => novel.removePlot(plot.id)}
-                      >
-                        ×
-                      </button>
-                    </div>
-                  </div>
-                  <p className="plot__content" style={{ fontSize: `calc(${fontSize}px * var(--fs))` }}>
-                    {plot.content}
-                  </p>
-                  {techs.length > 0 && (
-                    <div className="plot__techs">
-                      {techs.map((tech) => (
-                        <span
-                          key={tech.id}
-                          className={`plot__tech${tech.detail?.trim() ? '' : ' plot__tech--empty'}`}
-                          title={tech.detail?.trim() || '这张技法卡还没写用法说明'}
-                        >
-                          <span className="plot__tech-name">{tech.name}</span>
-                          {tech.detail?.trim() ? (
-                            <span className="plot__tech-note">{tech.detail.trim()}</span>
-                          ) : (
-                            <span className="plot__tech-note">未写用法说明</span>
-                          )}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-
-                  {tags.length > 0 && (
-                    <div className="plot__tags">
-                      {tags.map((tag) => (
-                        <span key={tag} className="plot__tag">
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </li>
-              )
-            })}
-          </ul>
-        )}
-
-        {data.plots.length === 0 && (
-          <p className="empty">还没有情节。点下面的「添加情节」新建一条。</p>
-        )}
-      </Card>
-
-          <div className="builder-footer">
-            <button
-              type="button"
-              className="btn btn--solid btn--wide"
-              onClick={() => {
-                setPlotEditingId(null)
-                setPlotDraft(emptyPlotDraft)
-                setPlotHint('')
-                setPlotDialogOpen(true)
-              }}
-            >
-              添加情节
-            </button>
-          </div>
-        </>
-      )}
-
-      <DetailModal
-        open={plotDialogOpen}
-        title={plotEditingId ? '编辑情节' : '添加情节'}
-        tag="情节"
-        meta={
-          plotEditingId
-            ? `第 ${String(data.plots.findIndex((item) => item.id === plotEditingId) + 1).padStart(2, '0')} 条`
-            : `第 ${String(data.plots.length + 1).padStart(2, '0')} 条`
-        }
-        onClose={closePlotDialog}
-        footer={
-          <>
-            <span className="tool-hint detail__foot-hint">
-              {plotEditingId
-                ? '改完点「保存情节」，点取消就丢弃这次修改。'
-                : '取消只关弹窗，草稿会留着；保存后才清空。'}
-            </span>
-            <button type="button" className="btn btn--sm btn--ghost" onClick={closePlotDialog}>
-              取消
-            </button>
-            <button type="button" className="btn btn--sm btn--solid" onClick={handleSavePlot}>
-              保存情节
-            </button>
-          </>
-        }
-      >
-        <div className="detail__section">
-          <div className="plot-font">
-            <label className="field__label" htmlFor="plot-dialog-content">
-              情节内容
-            </label>
-          </div>
-          <textarea
-            id="plot-dialog-content"
-            className="input input--area detail__editor detail__editor--tall"
-            style={{ fontSize: `calc(${fontSize}px * var(--fs))` }}
-            autoFocus
-            placeholder="这一条情节发生了什么，谁做了什么，结果如何……"
-            value={plotDraft.content}
-            onChange={(event) => {
-              setPlotDraft((prev) => ({ ...prev, content: event.target.value }))
-              setPlotHint('')
-            }}
-          />
-        </div>
-
-        <div className="plot-form__row">
-          <label className="label" htmlFor="plot-dialog-words">
-            字数要求
-          </label>
-          <input
-            id="plot-dialog-words"
-            className="input input--number"
-            type="number"
-            min="0"
-            step="100"
-            value={plotDraft.wordCount}
-            onChange={(event) => setPlotDraft((prev) => ({ ...prev, wordCount: event.target.value }))}
-          />
-        </div>
-
-        <TechniqueField
-          techniques={data.techniques}
-          selectedIds={plotDraft.techniqueIds}
-          onChange={(ids) => setPlotDraft((prev) => ({ ...prev, techniqueIds: ids }))}
+        <CharacterSection
+          novel={novel}
+          data={data}
+          items={characterItems}
+          key={resetSignal}
           onNavigate={onNavigate}
         />
+      )}
 
-        {plotHint && (
-          <p className="builder-hint" role="status">
-            {plotHint}
-          </p>
-        )}
-      </DetailModal>
+      {section === 'plot' && (
+        <PlotSection
+          novel={novel}
+          data={data}
+          fontSize={fontSize}
+          key={resetSignal}
+          onNavigate={onNavigate}
+        />
+      )}
 
       <PromptPreview
         open={previewOpen}
@@ -751,5 +224,3 @@ export default function BuilderPage({ novel, onNavigate, previewOpen = false, on
     </section>
   )
 }
-
-
